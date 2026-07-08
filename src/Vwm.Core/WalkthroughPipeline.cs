@@ -12,6 +12,8 @@ public sealed record PipelineOptions
 {
     public required string VideoPath { get; init; }
     public required string ScriptText { get; init; }
+    /// <summary>Pre-parsed steps (e.g. reviewed/edited in the UI). When null, <see cref="ScriptText"/> is parsed.</summary>
+    public IReadOnlyList<ScriptStep>? Steps { get; init; }
     public required string OutputPath { get; init; }
     public required ITtsEngine TtsEngine { get; init; }
     /// <summary>Explicit step boundaries (seconds). When null, scene detection proposes them.</summary>
@@ -41,7 +43,7 @@ public static class WalkthroughPipeline
         Directory.CreateDirectory(workDir);
 
         progress?.Report("Parsing script");
-        var steps = ScriptParser.Parse(options.ScriptText);
+        var steps = options.Steps ?? ScriptParser.Parse(options.ScriptText);
         if (steps.Count == 0)
             throw new InvalidOperationException("The script is empty — nothing to narrate.");
 

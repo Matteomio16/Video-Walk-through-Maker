@@ -1,0 +1,132 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Vwm.App.ViewModels"
+        x:Class="Vwm.App.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Video Walk-through Maker"
+        Width="1040" Height="720"
+        WindowStartupLocation="CenterScreen">
+
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto">
+
+    <TextBlock Grid.Row="0" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"
+               Text="Video Walk-through Maker" />
+
+    <!-- ============================== 1. INPUT ============================== -->
+    <StackPanel Grid.Row="1" Spacing="12" IsVisible="{Binding IsInputPage}">
+      <TextBlock Text="1 · Choose your recording and script" FontSize="16" FontWeight="Medium" />
+
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
+        <TextBox Grid.Column="0" Watermark="Video file (drag &amp; drop anywhere, or browse)"
+                 Text="{Binding VideoPath}" />
+        <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnBrowseVideo" />
+      </Grid>
+
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="Script (paste below, or load a .txt file)" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Load script file…" Click="OnBrowseScript" />
+      </Grid>
+      <TextBox Height="220" AcceptsReturn="True" TextWrapping="Wrap"
+               Watermark="1. Open the dashboard…&#10;2. Click the export tab…&#10;&#10;Number your steps, or separate them with blank lines."
+               Text="{Binding ScriptText}" />
+
+      <Grid ColumnDefinitions="Auto,200,Auto,Auto" >
+        <TextBlock Grid.Column="0" Text="Voice:" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding Engines}" SelectedItem="{Binding SelectedEngine}" />
+        <CheckBox Grid.Column="2" Margin="24,0,0,0" Content="Keep original audio (quiet, in background)"
+                  IsChecked="{Binding KeepOriginalAudio}" />
+      </Grid>
+
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Grid.Column="0" Watermark="Output file (leave empty for &lt;video&gt;_narrated.mp4)"
+                 Text="{Binding OutputPath}" />
+        <Button Grid.Column="1" Margin="8,0,0,0" Content="Save as…" Click="OnBrowseOutput" />
+      </Grid>
+
+      <Button Content="Analyze video  →" Classes="accent" FontSize="15"
+              Command="{Binding AnalyzeCommand}" IsEnabled="{Binding !IsBusy}" />
+    </StackPanel>
+
+    <!-- ============================== 2. REVIEW ============================== -->
+    <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto,Auto,Auto" IsVisible="{Binding IsReviewPage}">
+      <TextBlock Grid.Row="0" FontSize="16" FontWeight="Medium" Margin="0,0,0,8"
+                 Text="2 · Check that each step lines up with the right part of the video" />
+
+      <ScrollViewer Grid.Row="1">
+        <ItemsControl ItemsSource="{Binding Steps}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:StepItem">
+              <Border BorderBrush="#d0d0d0" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="SemiBold"
+                             VerticalAlignment="Top" Margin="0,6,12,0" />
+                  <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" />
+                  <Button Grid.Column="2" Margin="8,0,0,0" Content="▶ Preview voice" VerticalAlignment="Top"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).PreviewStepCommand}"
+                          CommandParameter="{Binding}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                    Margin="0,8,0,4">
+        <ItemsControl ItemsSource="{Binding Thumbnails}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ThumbItem">
+              <StackPanel Margin="0,0,4,0">
+                <Image Source="{Binding Image}" Height="66" />
+                <TextBlock Text="{Binding TimeLabel}" FontSize="10" HorizontalAlignment="Center" Foreground="#666" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <ItemsControl Grid.Row="3" ItemsSource="{Binding Boundaries}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:BoundaryItem">
+            <Grid ColumnDefinitions="110,*,60">
+              <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" FontSize="12" />
+              <Slider Grid.Column="1" Minimum="0" Maximum="{Binding Max}" Value="{Binding TimeSeconds}" />
+              <TextBlock Grid.Column="2" Text="{Binding TimeLabel}" VerticalAlignment="Center"
+                         FontSize="12" HorizontalAlignment="Right" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+        <Button Content="←  Back" Command="{Binding BackToInputCommand}" />
+        <Button Content="Create narrated video  →" Classes="accent" FontSize="15"
+                Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- ============================== 3. GENERATE ============================== -->
+    <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" IsVisible="{Binding IsGeneratePage}">
+      <TextBlock Grid.Row="0" FontSize="16" FontWeight="Medium" Margin="0,0,0,8"
+                 Text="3 · Creating your video" />
+      <ScrollViewer Grid.Row="1">
+        <ItemsControl ItemsSource="{Binding Log}" />
+      </ScrollViewer>
+      <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+        <Button Content="Open output folder" Classes="accent"
+                Command="{Binding OpenOutputFolderCommand}" IsVisible="{Binding IsDone}" />
+        <Button Content="Make another video" Command="{Binding StartOverCommand}"
+                IsEnabled="{Binding !IsBusy}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- footer: errors + busy -->
+    <StackPanel Grid.Row="2" Margin="0,10,0,0">
+      <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
+      <TextBlock Foreground="#c0392b" TextWrapping="Wrap" Text="{Binding ErrorMessage}" />
+    </StackPanel>
+  </Grid>
+</Window>
