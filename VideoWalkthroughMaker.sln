@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F5305C50
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vwm.Core.Tests", "tests\Vwm.Core.Tests\Vwm.Core.Tests.csproj", "{AA0B6D52-B06E-4A9D-96A1-11BF2ACD8470}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vwm.Cli", "src\Vwm.Cli\Vwm.Cli.csproj", "{D079D1A0-C204-4044-ADBE-64045A954939}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{AA0B6D52-B06E-4A9D-96A1-11BF2ACD8470}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AA0B6D52-B06E-4A9D-96A1-11BF2ACD8470}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AA0B6D52-B06E-4A9D-96A1-11BF2ACD8470}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D079D1A0-C204-4044-ADBE-64045A954939}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D079D1A0-C204-4044-ADBE-64045A954939}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D079D1A0-C204-4044-ADBE-64045A954939}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D079D1A0-C204-4044-ADBE-64045A954939}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{10454D8B-E349-46B3-8E08-F30A35A21B3B} = {E120599B-41A3-493F-A1FE-1EB44BC33341}
 		{AA0B6D52-B06E-4A9D-96A1-11BF2ACD8470} = {F5305C50-E67C-4816-AAE1-A08A4BBDF113}
+		{D079D1A0-C204-4044-ADBE-64045A954939} = {E120599B-41A3-493F-A1FE-1EB44BC33341}
 	EndGlobalSection
 EndGlobal
