@@ -33,10 +33,10 @@ static int Usage()
         usage:
           vwm make --video <in.mp4> --script <script.txt> --out <out.mp4>
                    [--engine espeak|piper] [--piper-model <voice.onnx>]
-                   [--boundaries <boundaries.json>] [--threshold 0.04]
+                   [--boundaries <boundaries.json>] [--threshold 0.005]
                    [--keep-original-audio] [--work-dir <dir>]
 
-          vwm detect --video <in.mp4> --steps <N> [--threshold 0.04]
+          vwm detect --video <in.mp4> --steps <N> [--threshold 0.005]
                    Prints proposed step boundaries (seconds) as JSON.
         """);
     return 2;
@@ -70,7 +70,7 @@ static async Task<int> MakeAsync(Args opts)
             OutputPath = output,
             TtsEngine = CreateEngine(opts),
             Boundaries = boundaries,
-            SceneThreshold = opts.GetDouble("threshold", 0.04),
+            SceneThreshold = opts.GetDouble("threshold", 0.005),
             KeepOriginalAudio = opts.Has("keep-original-audio"),
             WorkDir = opts.GetOrNull("work-dir"),
         },
@@ -90,7 +90,7 @@ static async Task<int> DetectAsync(Args opts)
         throw new ArgumentException("--steps must be a positive integer.");
 
     var duration = await SceneDetector.GetDurationAsync(video);
-    var cuts = await SceneDetector.DetectAsync(video, opts.GetDouble("threshold", 0.04));
+    var cuts = await SceneDetector.DetectAsync(video, opts.GetDouble("threshold", 0.005));
     var boundaries = SceneDetector.ProposeBoundaries(cuts, duration, steps);
     Console.WriteLine(JsonSerializer.Serialize(boundaries));
     return 0;

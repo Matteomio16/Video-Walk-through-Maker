@@ -52,6 +52,24 @@ public class ScriptParserTests
     }
 
     [Fact]
+    public void Parses_bulleted_steps()
+    {
+        var steps = ScriptParser.Parse("- Open the portal.\n- Upload the file, then double-check it.\n* Press submit.");
+
+        Assert.Equal(3, steps.Count);
+        Assert.Equal("Upload the file, then double-check it.", steps[1].Text);
+    }
+
+    [Fact]
+    public void Hyphenated_word_at_line_start_is_not_a_bullet()
+    {
+        var steps = ScriptParser.Parse("First we log in.\n-checking is not needed here at all.\n\nThen we export.");
+
+        Assert.Equal(2, steps.Count); // blank-line split, hyphen left intact
+        Assert.StartsWith("First we log in. -checking", steps[0].Text);
+    }
+
+    [Fact]
     public void Empty_script_returns_no_steps()
     {
         Assert.Empty(ScriptParser.Parse("   \n\n  "));

@@ -20,7 +20,7 @@ public static partial class SceneDetector
     private static partial Regex SceneScore();
 
     public static async Task<IReadOnlyList<SceneCut>> DetectAsync(
-        string videoPath, double threshold = 0.04, CancellationToken ct = default)
+        string videoPath, double threshold = 0.005, CancellationToken ct = default)
     {
         var stdout = await ProcessRunner.RunAsync(
             ToolLocator.FfmpegPath,

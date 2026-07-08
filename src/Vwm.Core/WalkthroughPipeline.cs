@@ -18,7 +18,7 @@ public sealed record PipelineOptions
     public required ITtsEngine TtsEngine { get; init; }
     /// <summary>Explicit step boundaries (seconds). When null, scene detection proposes them.</summary>
     public IReadOnlyList<double>? Boundaries { get; init; }
-    public double SceneThreshold { get; init; } = 0.04;
+    public double SceneThreshold { get; init; } = 0.005;
     public bool KeepOriginalAudio { get; init; }
     /// <summary>Directory for intermediate files. A temp directory is created (and kept for debugging) when null.</summary>
     public string? WorkDir { get; init; }

@@ -7,7 +7,7 @@ public sealed record ScriptStep(int Index, string Text, IReadOnlyList<string> Se
 
 public static partial class ScriptParser
 {
-    [GeneratedRegex(@"^\s*(?:step\s+\d+\s*[:.\)]?|\d+\s*[.\)])\s*", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(?:step\s+\d+\s*[:.\)]?|\d+\s*[.\)]|[-*•](?=\s))\s*", RegexOptions.IgnoreCase)]
     private static partial Regex StepMarker();
 
     [GeneratedRegex(@"(?<=[.!?])\s+(?=[A-Z0-9""'(])")]
