@@ -32,7 +32,7 @@ cat > "$WORK/script.txt" <<'EOF'
 EOF
 
 # --- 3. Run the pipeline ------------------------------------------------------
-dotnet run --project "$ROOT/src/Vwm.Cli" -c Release -- make \
+dotnet run --project "$ROOT/src/Vwm.Cli" -c Release -f net8.0 -- make \
   --video "$WORK/input.mp4" \
   --script "$WORK/script.txt" \
   --out "$WORK/output.mp4" \

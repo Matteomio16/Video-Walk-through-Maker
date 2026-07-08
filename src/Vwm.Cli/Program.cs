@@ -46,7 +46,10 @@ static ITtsEngine CreateEngine(Args opts) => opts.Get("engine", "piper") switch
 {
     "piper" => new PiperTtsEngine(modelPath: opts.GetOrNull("piper-model")),
     "espeak" => new EspeakTtsEngine(),
-    var e => throw new ArgumentException($"Unknown engine '{e}'. Use piper or espeak."),
+#if WINDOWS10_0_19041_0_OR_GREATER
+    "windows" => new Vwm.Tts.Windows.WindowsTtsEngine(opts.GetOrNull("voice")),
+#endif
+    var e => throw new ArgumentException($"Unknown engine '{e}'. Use piper, espeak or windows."),
 };
 
 static async Task<int> MakeAsync(Args opts)

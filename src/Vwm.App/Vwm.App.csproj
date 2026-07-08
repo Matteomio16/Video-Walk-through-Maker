@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net8.0;net8.0-windows10.0.19041.0</TargetFrameworks>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -16,5 +16,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Vwm.Core/Vwm.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
+    <ProjectReference Include="../Vwm.Tts.Windows/Vwm.Tts.Windows.csproj" />
   </ItemGroup>
 </Project>

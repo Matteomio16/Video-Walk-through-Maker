@@ -92,11 +92,11 @@ public partial class MainViewModel : ObservableObject
 
     private static ITtsEngine CreateWindowsEngine()
     {
-        // Loaded by name so the app itself stays cross-platform; the Windows build ships Vwm.Tts.Windows.dll.
-        var type = Type.GetType("Vwm.Tts.Windows.WindowsTtsEngine, Vwm.Tts.Windows")
-            ?? throw new InvalidOperationException(
-                "The Windows voice engine is only available in the packaged Windows build.");
-        return (ITtsEngine)Activator.CreateInstance(type)!;
+#if WINDOWS10_0_19041_0_OR_GREATER
+        return new Vwm.Tts.Windows.WindowsTtsEngine();
+#else
+        throw new InvalidOperationException("The Windows voice engine is only available in the Windows build.");
+#endif
     }
 
     [RelayCommand]
