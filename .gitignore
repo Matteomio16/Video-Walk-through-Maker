@@ -1,0 +1,14 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+artifacts/
+dist/
+tools/ffmpeg*
+tools/piper/
+tools/voices/
+TestResults/
+*.mp4
+*.wav
+!tests/fixtures/**
