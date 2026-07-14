@@ -29,7 +29,7 @@ Write-Host "==> Downloading ffmpeg (gyan.dev release essentials)"
 $ffzip = Join-Path $tmp "ffmpeg.zip"
 Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile $ffzip
 Expand-Archive $ffzip -DestinationPath $tmp -Force
-Get-ChildItem $tmp -Recurse -Include ffmpeg.exe, ffprobe.exe | ForEach-Object {
+Get-ChildItem $tmp -Recurse -Include ffmpeg.exe, ffprobe.exe, ffplay.exe | ForEach-Object {
   Copy-Item $_.FullName $tools -Force
 }
 

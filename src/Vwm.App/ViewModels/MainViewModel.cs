@@ -3,7 +3,9 @@ using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vwm.Core;
+using Vwm.Core.Render;
 using Vwm.Core.Script;
+using Vwm.Core.Timeline;
 using Vwm.Core.Tools;
 using Vwm.Core.Tts;
 using Vwm.Core.Video;
@@ -15,6 +17,7 @@ public partial class StepItem(int index, string text) : ObservableObject
     public int Index { get; } = index;
     public string Header => $"Step {Index + 1}";
     [ObservableProperty] private string _text = text;
+    [ObservableProperty] private bool _isPlaying;
 
     public ScriptStep ToScriptStep() => new(Index, Text, ScriptParser.SplitSentences(Text));
 }
@@ -132,7 +135,8 @@ public partial class MainViewModel : ObservableObject
 
             _videoDuration = await SceneDetector.GetDurationAsync(VideoPath);
             var cuts = await SceneDetector.DetectAsync(VideoPath);
-            var boundaries = SceneDetector.ProposeBoundaries(cuts, _videoDuration, steps.Count);
+            var boundaries = SceneDetector.ProposeBoundaries(
+                cuts, _videoDuration, steps.Count, NarrationEstimator.EstimateWeights(steps));
 
             Directory.CreateDirectory(_workDir);
             var thumbs = await ThumbnailExtractor.ExtractAsync(
@@ -167,21 +171,116 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void BackToInput() => PageIndex = 0;
-
-    [RelayCommand]
-    private async Task PreviewStepAsync(StepItem step)
+    private void BackToInput()
     {
+        StopPlayback();
+        PageIndex = 0;
+    }
+
+    private Process? _playback;
+    private StepItem? _playingStep;
+
+    /// <summary>Voice-only preview, played inline (hidden ffplay process) — no window opens.</summary>
+    [RelayCommand]
+    private async Task PreviewVoiceAsync(StepItem step)
+    {
+        if (step.IsPlaying)
+        {
+            StopPlayback();
+            return;
+        }
+        StopPlayback();
         ErrorMessage = "";
         IsBusy = true;
         try
         {
-            var sentences = ScriptParser.SplitSentences(step.Text);
-            if (sentences.Count == 0)
+            var wav = await PreviewBuilder.BuildVoicePreviewAsync(
+                step.ToScriptStep(), CreateEngine(), Path.Combine(_workDir, "preview"));
+
+            var ffplay = ToolLocator.Find("ffplay")
+                ?? throw new ToolNotFoundException("ffplay", "bundle ffplay.exe in the 'tools' folder next to the app");
+            var psi = new ProcessStartInfo(ffplay)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            foreach (var a in new[] { "-nodisp", "-autoexit", "-loglevel", "error", wav })
+                psi.ArgumentList.Add(a);
+
+            _playback = Process.Start(psi);
+            if (_playback is not null)
+            {
+                _playingStep = step;
+                step.IsPlaying = true;
+                _ = MonitorPlaybackAsync(_playback, step);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task MonitorPlaybackAsync(Process playback, StepItem step)
+    {
+        try
+        {
+            await playback.WaitForExitAsync();
+        }
+        catch
+        {
+            // killed by StopPlayback — nothing to do
+        }
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            step.IsPlaying = false;
+            if (_playback == playback)
+            {
+                _playback = null;
+                _playingStep = null;
+            }
+        });
+    }
+
+    private void StopPlayback()
+    {
+        if (_playback is { HasExited: false } p)
+        {
+            try { p.Kill(); } catch { /* already gone */ }
+        }
+        _playback = null;
+        if (_playingStep is not null)
+        {
+            _playingStep.IsPlaying = false;
+            _playingStep = null;
+        }
+    }
+
+    /// <summary>Video+voice preview of one step; opens in the OS default player.</summary>
+    [RelayCommand]
+    private async Task PreviewClipAsync(StepItem step)
+    {
+        StopPlayback();
+        ErrorMessage = "";
+        IsBusy = true;
+        try
+        {
+            var sourceStart = step.Index == 0 ? 0 : Boundaries[step.Index - 1].TimeSeconds;
+            var sourceEnd = step.Index == Boundaries.Count ? _videoDuration : Boundaries[step.Index].TimeSeconds;
+            if (sourceEnd <= sourceStart)
+            {
+                ErrorMessage = "This step's boundaries overlap — adjust the sliders first.";
                 return;
-            var wav = Path.Combine(_workDir, $"preview_{step.Index}.wav");
-            await CreateEngine().SynthesizeAsync(sentences[0], wav);
-            Process.Start(new ProcessStartInfo(wav) { UseShellExecute = true });
+            }
+
+            var previewDir = Path.Combine(_workDir, "preview");
+            var wav = await PreviewBuilder.BuildVoicePreviewAsync(step.ToScriptStep(), CreateEngine(), previewDir);
+            var clip = await PreviewBuilder.BuildClipPreviewAsync(VideoPath, sourceStart, sourceEnd, wav, previewDir);
+            Process.Start(new ProcessStartInfo(clip) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -196,6 +295,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task GenerateAsync()
     {
+        StopPlayback();
         ErrorMessage = "";
         var boundaries = Boundaries.Select(b => b.TimeSeconds).ToList();
         if (boundaries.Zip(boundaries.Skip(1)).Any(p => p.Second <= p.First) ||

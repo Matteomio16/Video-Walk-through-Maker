@@ -61,9 +61,19 @@
                   <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="SemiBold"
                              VerticalAlignment="Top" Margin="0,6,12,0" />
                   <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" />
-                  <Button Grid.Column="2" Margin="8,0,0,0" Content="▶ Preview voice" VerticalAlignment="Top"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).PreviewStepCommand}"
-                          CommandParameter="{Binding}" />
+                  <StackPanel Grid.Column="2" Margin="8,0,0,0" Spacing="4" VerticalAlignment="Top">
+                    <Button Content="▶ Voice" MinWidth="120" HorizontalContentAlignment="Center"
+                            IsVisible="{Binding !IsPlaying}"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).PreviewVoiceCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Content="■ Stop" MinWidth="120" HorizontalContentAlignment="Center"
+                            IsVisible="{Binding IsPlaying}"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).PreviewVoiceCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Content="▶ Preview clip" MinWidth="120" HorizontalContentAlignment="Center"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).PreviewClipCommand}"
+                            CommandParameter="{Binding}" />
+                  </StackPanel>
                 </Grid>
               </Border>
             </DataTemplate>

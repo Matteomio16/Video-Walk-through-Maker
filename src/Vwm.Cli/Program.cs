@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 using Vwm.Core;
+using Vwm.Core.Script;
+using Vwm.Core.Timeline;
 using Vwm.Core.Tts;
 using Vwm.Core.Video;
 
@@ -36,8 +38,9 @@ static int Usage()
                    [--boundaries <boundaries.json>] [--threshold 0.005]
                    [--keep-original-audio] [--work-dir <dir>]
 
-          vwm detect --video <in.mp4> --steps <N> [--threshold 0.005]
-                   Prints proposed step boundaries (seconds) as JSON.
+          vwm detect --video <in.mp4> --steps <N> [--script <script.txt>] [--threshold 0.005]
+                   Prints proposed step boundaries (seconds) as JSON. With --script,
+                   step lengths from the script guide the placement.
         """);
     return 2;
 }
@@ -85,13 +88,24 @@ static async Task<int> MakeAsync(Args opts)
 static async Task<int> DetectAsync(Args opts)
 {
     var video = opts.Require("video");
-    var steps = (int)opts.GetDouble("steps", 0);
-    if (steps < 1)
-        throw new ArgumentException("--steps must be a positive integer.");
+    IReadOnlyList<double>? weights = null;
+    int steps;
+    if (opts.GetOrNull("script") is string scriptFile)
+    {
+        var parsed = ScriptParser.Parse(await File.ReadAllTextAsync(scriptFile));
+        weights = NarrationEstimator.EstimateWeights(parsed);
+        steps = parsed.Count;
+    }
+    else
+    {
+        steps = (int)opts.GetDouble("steps", 0);
+        if (steps < 1)
+            throw new ArgumentException("--steps must be a positive integer (or pass --script).");
+    }
 
     var duration = await SceneDetector.GetDurationAsync(video);
     var cuts = await SceneDetector.DetectAsync(video, opts.GetDouble("threshold", 0.005));
-    var boundaries = SceneDetector.ProposeBoundaries(cuts, duration, steps);
+    var boundaries = SceneDetector.ProposeBoundaries(cuts, duration, steps, weights);
     Console.WriteLine(JsonSerializer.Serialize(boundaries));
     return 0;
 }

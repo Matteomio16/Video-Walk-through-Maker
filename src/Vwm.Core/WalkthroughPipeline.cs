@@ -52,7 +52,8 @@ public static class WalkthroughPipeline
         var boundaries = options.Boundaries
             ?? SceneDetector.ProposeBoundaries(
                 await SceneDetector.DetectAsync(options.VideoPath, options.SceneThreshold, ct),
-                duration, steps.Count);
+                duration, steps.Count,
+                NarrationEstimator.EstimateWeights(steps));
 
         progress?.Report($"Generating voiceover ({options.TtsEngine.Name})");
         var stepNarrations = new List<IReadOnlyList<(string, TtsClip)>>();
