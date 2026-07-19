@@ -79,6 +79,21 @@ static async Task<int> MakeAsync(Args opts)
         },
         progress: new Progress<string>(s => Console.WriteLine($"[vwm] {s}")));
 
+    if (opts.GetOrNull("dump-plan") is string planPath)
+    {
+        var dump = new
+        {
+            total = result.Plan.TotalDuration,
+            segments = result.Plan.Segments.Select(s => new
+            {
+                s.StepIndex, s.SourceStart, s.SourceEnd, s.HoldSeconds, s.OutputStart, s.OutputDuration,
+            }),
+            cues = result.Plan.Cues.Select(c => new { c.Text, c.Start, c.Duration }),
+        };
+        await File.WriteAllTextAsync(planPath,
+            JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     Console.WriteLine($"[vwm] steps: {result.Steps.Count}, boundaries: " +
         string.Join(", ", result.Boundaries.Select(b => b.ToString("F2", CultureInfo.InvariantCulture))));
     Console.WriteLine($"[vwm] wrote {result.OutputPath} and {result.SrtPath}");

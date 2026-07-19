@@ -56,4 +56,36 @@ public class TimelinePlannerTests
         Assert.Throws<ArgumentException>(() =>
             TimelinePlanner.Plan(10, [12.0], [Step(1.0), Step(1.0)], Opt));
     }
+
+    [Fact]
+    public void Segment_durations_are_whole_frames_so_the_timeline_cannot_drift()
+    {
+        var opt = new PlannerOptions { Fps = 30, LeadInSeconds = 0.3, TailSeconds = 0.5, SentenceGapSeconds = 0.35 };
+        // Deliberately non-frame-aligned clip durations.
+        var plan = TimelinePlanner.Plan(
+            20, [7.123], [Step(2.111, 1.777), Step(3.333)], opt);
+
+        var frame = 1.0 / opt.Fps;
+        foreach (var seg in plan.Segments)
+        {
+            var frames = seg.OutputDuration / frame;
+            Assert.Equal(Math.Round(frames), frames, 6); // exact whole number of frames
+        }
+        // Cumulative starts stay on the frame grid too.
+        var totalFrames = plan.TotalDuration / frame;
+        Assert.Equal(Math.Round(totalFrames), totalFrames, 6);
+    }
+
+    [Fact]
+    public void Quantized_output_never_truncates_content()
+    {
+        var opt = new PlannerOptions { Fps = 30, LeadInSeconds = 0.3, TailSeconds = 0.5 };
+        var plan = TimelinePlanner.Plan(10, [4.0], [Step(2.4), Step(1.0)], opt);
+
+        // Each segment must be at least as long as the larger of its source/narration need.
+        var seg0 = plan.Segments[0];
+        var narration0 = 0.3 + 2.4 + 0.5;
+        Assert.True(seg0.OutputDuration >= narration0 - 1e-9);
+        Assert.True(seg0.OutputDuration >= seg0.SourceDuration - 1e-9);
+    }
 }

@@ -64,7 +64,11 @@ public static class WalkthroughPipeline
             foreach (var sentence in step.Sentences)
             {
                 var wav = Path.Combine(workDir, $"tts_{clipIndex++:D3}.wav");
-                clips.Add((sentence, await options.TtsEngine.SynthesizeAsync(sentence, wav, ct)));
+                var clip = await options.TtsEngine.SynthesizeAsync(sentence, wav, ct);
+                // Trim the engine's leading/trailing silence so the clip's duration is the
+                // actual speech length; the subtitle then starts on the voice, not before it.
+                var trimmedDuration = SilenceTrimmer.Trim(wav);
+                clips.Add((sentence, clip with { DurationSeconds = trimmedDuration }));
             }
             stepNarrations.Add(clips);
         }
@@ -85,7 +89,11 @@ public static class WalkthroughPipeline
         var sidecarSrt = Path.ChangeExtension(options.OutputPath, ".srt");
         await File.WriteAllTextAsync(sidecarSrt, srt, ct);
 
-        var renderer = new Renderer(workDir, new RenderOptions { KeepOriginalAudio = options.KeepOriginalAudio });
+        var renderer = new Renderer(workDir, new RenderOptions
+        {
+            KeepOriginalAudio = options.KeepOriginalAudio,
+            Fps = options.Planner.Fps,
+        });
         await renderer.RenderAsync(options.VideoPath, plan, narrationWav, srtFileName, options.OutputPath, progress, ct);
 
         progress?.Report("Done");

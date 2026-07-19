@@ -9,6 +9,10 @@ public sealed record PlannerOptions
     /// <summary>Silence after the last sentence of each step.</summary>
     public double TailSeconds { get; init; } = 0.5;
     public double SentenceGapSeconds { get; init; } = 0.35;
+    /// <summary>Output frame rate. Segment durations are quantized to whole frames at this rate
+    /// so the concatenated video timeline exactly equals the planned timeline (zero drift).
+    /// Must match the renderer's frame rate.</summary>
+    public int Fps { get; init; } = 30;
 }
 
 /// <summary>A source-video segment and how long to freeze its last frame in the output.</summary>
@@ -64,6 +68,7 @@ public static class TimelinePlanner
         var narration = new List<NarrationPlacement>();
         var cues = new List<SentenceCue>();
         var cursor = 0.0;
+        var frameSeconds = 1.0 / opt.Fps;
 
         for (var i = 0; i < stepCount; i++)
         {
@@ -79,7 +84,12 @@ public static class TimelinePlanner
                   + opt.SentenceGapSeconds * (sentences.Count - 1)
                   + opt.TailSeconds;
 
-            var outputDuration = Math.Max(sourceDuration, narrationDuration);
+            // Round the segment length UP to a whole number of frames: the output timeline
+            // is then an exact frame grid, so concatenated segment boundaries coincide with
+            // these planned offsets to the sample — no accumulating drift. Rounding up never
+            // truncates the narration or the source segment.
+            var rawOutputDuration = Math.Max(sourceDuration, narrationDuration);
+            var outputDuration = Math.Ceiling(rawOutputDuration / frameSeconds - 1e-9) * frameSeconds;
             var hold = outputDuration - sourceDuration;
 
             var t = cursor + opt.LeadInSeconds;

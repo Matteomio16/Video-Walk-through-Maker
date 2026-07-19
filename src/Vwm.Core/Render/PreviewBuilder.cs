@@ -33,9 +33,10 @@ public static class PreviewBuilder
         for (var i = 0; i < step.Sentences.Count; i++)
         {
             var wav = Path.Combine(workDir, $"voice_{key}_{i}.wav");
-            var clip = await engine.SynthesizeAsync(step.Sentences[i], wav, ct);
+            await engine.SynthesizeAsync(step.Sentences[i], wav, ct);
+            var duration = SilenceTrimmer.Trim(wav); // match the final render's tightened timing
             clips.Add((wav, t));
-            t += clip.DurationSeconds + SentenceGapSeconds;
+            t += duration + SentenceGapSeconds;
         }
         if (clips.Count == 0)
             throw new InvalidOperationException("The step has no sentences to preview.");

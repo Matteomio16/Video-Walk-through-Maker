@@ -44,8 +44,11 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
             var segFile = $"seg_{seg.StepIndex:D3}.mp4";
             segmentFiles.Add(segFile);
 
+            // Over-provision the freeze by a few frames, then cut to an exact frame count so
+            // the segment is deterministically OutputDuration long (matching the quantized plan).
+            var exactFrames = (int)Math.Round(seg.OutputDuration * _opt.Fps);
             var vf = $"trim=duration={F(seg.SourceDuration)},setpts=PTS-STARTPTS," +
-                     $"tpad=stop_mode=clone:stop_duration={F(seg.HoldSeconds)}," +
+                     $"tpad=stop_mode=clone:stop_duration={F(seg.HoldSeconds + 0.25)}," +
                      $"fps={_opt.Fps},format=yuv420p";
 
             var args = new List<string>
@@ -62,13 +65,18 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
                     $"atrim=duration={F(seg.SourceDuration)},asetpts=PTS-STARTPTS," +
                     $"apad=whole_dur={F(seg.OutputDuration)}",
                     "-c:a", "aac", "-b:a", "128k",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                    "-t", F(seg.OutputDuration), segFile,
                 ]);
             }
             else
             {
-                args.Add("-an");
+                args.AddRange([
+                    "-an",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                    "-frames:v", exactFrames.ToString(CultureInfo.InvariantCulture), segFile,
+                ]);
             }
-            args.AddRange(["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-t", F(seg.OutputDuration), segFile]);
 
             await ProcessRunner.RunAsync(ffmpeg, args, workingDirectory: workDir, ct: ct);
         }

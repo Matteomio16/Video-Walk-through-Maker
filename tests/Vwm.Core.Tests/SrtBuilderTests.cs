@@ -46,4 +46,33 @@ public class SrtBuilderTests
     {
         Assert.Equal("01:02:03,450", SrtBuilder.FormatTime(3723.45));
     }
+
+    [Fact]
+    public void Short_cue_is_held_to_the_minimum_duration()
+    {
+        // A 0.4s utterance with nothing after it should stay on screen for MinCueSeconds.
+        var srt = SrtBuilder.Build([new SentenceCue("Click save.", 2.0, 0.4)]).Replace("\r\n", "\n");
+
+        Assert.Contains($"{SrtBuilder.FormatTime(2.0)} --> {SrtBuilder.FormatTime(2.0 + SrtBuilder.MinCueSeconds)}", srt);
+    }
+
+    [Fact]
+    public void Extension_never_overlaps_the_next_cue()
+    {
+        var srt = SrtBuilder.Build([
+            new SentenceCue("Click save.", 2.0, 0.4),
+            new SentenceCue("Then close.", 2.7, 0.4),
+        ]).Replace("\r\n", "\n");
+
+        // First cue can only extend to 2.7 - MinGap, not the full 1.2s.
+        var expectedEnd = 2.7 - SrtBuilder.MinGapSeconds;
+        Assert.Contains($"{SrtBuilder.FormatTime(2.0)} --> {SrtBuilder.FormatTime(expectedEnd)}", srt);
+    }
+
+    [Fact]
+    public void Long_cue_is_not_shortened()
+    {
+        var srt = SrtBuilder.Build([new SentenceCue("A long spoken sentence.", 1.0, 3.0)]).Replace("\r\n", "\n");
+        Assert.Contains($"{SrtBuilder.FormatTime(1.0)} --> {SrtBuilder.FormatTime(4.0)}", srt);
+    }
 }

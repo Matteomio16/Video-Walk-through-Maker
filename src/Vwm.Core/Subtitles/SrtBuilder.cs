@@ -13,21 +13,28 @@ public static class SrtBuilder
 {
     public const int MaxLineLength = 42;
     public const int MaxLinesPerCue = 2;
+    /// <summary>Shortest time a cue stays on screen, so brief utterances remain readable.</summary>
+    public const double MinCueSeconds = 1.2;
+    /// <summary>Gap kept between one cue's end and the next cue's start when extending.</summary>
+    public const double MinGapSeconds = 0.08;
 
     public static string Build(IReadOnlyList<SentenceCue> cues)
     {
+        var flat = cues.SelectMany(SplitCue).ToList();
         var sb = new StringBuilder();
-        var index = 1;
-        foreach (var cue in cues)
+        for (var i = 0; i < flat.Count; i++)
         {
-            foreach (var (text, start, duration) in SplitCue(cue))
-            {
-                sb.AppendLine(index.ToString(CultureInfo.InvariantCulture));
-                sb.AppendLine($"{FormatTime(start)} --> {FormatTime(start + duration)}");
-                sb.AppendLine(text);
-                sb.AppendLine();
-                index++;
-            }
+            var (text, start, duration) = flat[i];
+            var speechEnd = start + duration;
+            // Hold a short cue on screen up to MinCueSeconds, but never past the next cue.
+            var end = Math.Max(speechEnd, start + MinCueSeconds);
+            if (i + 1 < flat.Count)
+                end = Math.Min(end, Math.Max(speechEnd, flat[i + 1].Start - MinGapSeconds));
+
+            sb.AppendLine((i + 1).ToString(CultureInfo.InvariantCulture));
+            sb.AppendLine($"{FormatTime(start)} --> {FormatTime(end)}");
+            sb.AppendLine(text);
+            sb.AppendLine();
         }
         return sb.ToString();
     }
