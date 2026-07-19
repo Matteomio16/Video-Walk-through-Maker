@@ -13,6 +13,19 @@ public static partial class ScriptParser
     [GeneratedRegex(@"(?<=[.!?])\s+(?=[A-Z0-9""'(])")]
     private static partial Regex SentenceBoundary();
 
+    [GeneratedRegex(@"([A-Za-z]+)\.$")]
+    private static partial Regex TrailingAbbrev();
+
+    /// <summary>Words that end in a period without ending a sentence, so a following
+    /// capitalized word must not trigger a split (e.g. "Dr. Smith", "Fig. 2").</summary>
+    private static readonly HashSet<string> Abbreviations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "dr", "mr", "mrs", "ms", "prof", "sr", "jr", "st", "mt", "vs", "etc",
+        "inc", "ltd", "co", "corp", "dept", "no", "fig", "vol", "gen", "sgt",
+        "capt", "lt", "col", "rev", "hon", "pres", "gov", "sen", "rep",
+        "ave", "blvd", "rd", "approx", "min", "max", "est", "dept",
+    };
+
     /// <summary>
     /// Splits a plain-prose script into steps. Strategies, in order of preference:
     /// numbered markers ("1.", "Step 2:") > blank-line paragraphs > one sentence per step.
@@ -77,9 +90,30 @@ public static partial class ScriptParser
         var normalized = Regex.Replace(text, @"\s+", " ").Trim();
         if (normalized.Length == 0)
             return [];
-        return SentenceBoundary().Split(normalized)
-            .Select(s => s.Trim())
-            .Where(s => s.Length > 0)
-            .ToList();
+
+        // Split on sentence boundaries, then merge back any split that fell after an
+        // abbreviation or a single-letter initial ("Dr. Smith", "J. Doe", "Fig. 2").
+        var pieces = SentenceBoundary().Split(normalized);
+        var merged = new List<string>();
+        foreach (var piece in pieces)
+        {
+            var trimmed = piece.Trim();
+            if (trimmed.Length == 0)
+                continue;
+            if (merged.Count > 0 && EndsWithAbbreviation(merged[^1]))
+                merged[^1] = merged[^1] + " " + trimmed;
+            else
+                merged.Add(trimmed);
+        }
+        return merged;
+    }
+
+    private static bool EndsWithAbbreviation(string sentence)
+    {
+        var m = TrailingAbbrev().Match(sentence);
+        if (!m.Success)
+            return false;
+        var word = m.Groups[1].Value;
+        return word.Length == 1 || Abbreviations.Contains(word);
     }
 }

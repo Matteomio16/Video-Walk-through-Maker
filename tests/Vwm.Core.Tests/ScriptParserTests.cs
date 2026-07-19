@@ -70,6 +70,24 @@ public class ScriptParserTests
     }
 
     [Fact]
+    public void Does_not_split_on_abbreviations_or_initials()
+    {
+        var sentences = ScriptParser.SplitSentences(
+            "Open the dashboard and check Dr. Smith is listed. Then ask Mr. J. Doe to review Fig. 2 carefully.");
+
+        Assert.Equal(2, sentences.Count);
+        Assert.Equal("Open the dashboard and check Dr. Smith is listed.", sentences[0]);
+        Assert.Equal("Then ask Mr. J. Doe to review Fig. 2 carefully.", sentences[1]);
+    }
+
+    [Fact]
+    public void Still_splits_on_real_sentence_boundaries()
+    {
+        var sentences = ScriptParser.SplitSentences("Click save. Then close the window. Finally sign out.");
+        Assert.Equal(3, sentences.Count);
+    }
+
+    [Fact]
     public void Empty_script_returns_no_steps()
     {
         Assert.Empty(ScriptParser.Parse("   \n\n  "));

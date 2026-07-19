@@ -65,18 +65,18 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
                     $"atrim=duration={F(seg.SourceDuration)},asetpts=PTS-STARTPTS," +
                     $"apad=whole_dur={F(seg.OutputDuration)}",
                     "-c:a", "aac", "-b:a", "128k",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-                    "-t", F(seg.OutputDuration), segFile,
                 ]);
             }
             else
             {
-                args.AddRange([
-                    "-an",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-                    "-frames:v", exactFrames.ToString(CultureInfo.InvariantCulture), segFile,
-                ]);
+                args.Add("-an");
             }
+            // Always bound the segment by an exact video frame count so its duration matches
+            // the frame-quantized plan (and, in keep-audio mode, so audio and video stay locked).
+            args.AddRange([
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                "-frames:v", exactFrames.ToString(CultureInfo.InvariantCulture), segFile,
+            ]);
 
             await ProcessRunner.RunAsync(ffmpeg, args, workingDirectory: workDir, ct: ct);
         }

@@ -100,9 +100,15 @@ public static partial class SceneDetector
         var minSeg = minSegmentSeconds
             ?? Math.Clamp(0.5 * videoDuration * w.Min() / totalW, 0.25, 1.0);
 
+        // Normalize scores by the strongest cut in the video. Screen-recording cuts have
+        // small absolute scene scores (~0.01-0.05); normalizing lets the clearest real cut
+        // still compete with the narration-length prior, independent of absolute magnitude.
+        var maxScore = cuts.Count > 0 ? cuts.Max(c => c.Score) : 0.0;
+        double Norm(double s) => maxScore > 1e-9 ? Math.Clamp(s / maxScore, 0, 1) : 0.0;
+
         // Candidate pool: real cuts + the expected positions as zero-score fallbacks.
         var candidates = cuts
-            .Select(c => (Time: c.TimeSeconds, Score: Math.Clamp(c.Score, 0, 1)))
+            .Select(c => (Time: c.TimeSeconds, Score: Norm(c.Score)))
             .Concat(expected.Select(e => (Time: e, Score: 0.0)))
             .Where(c => c.Time >= minSeg && c.Time <= videoDuration - minSeg)
             .GroupBy(c => Math.Round(c.Time, 2))

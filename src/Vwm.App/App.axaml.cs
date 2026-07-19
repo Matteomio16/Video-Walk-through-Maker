@@ -20,9 +20,11 @@ public class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    /// <summary>Optional prefill: --video path, --script-file path, --out path, --auto-analyze.</summary>
+    /// <summary>Optional prefill/automation: --video, --script-file, --out, --auto-analyze, --auto-generate.</summary>
     private static void ApplyCommandLine(MainViewModel vm, string[] args)
     {
+        var autoAnalyze = false;
+        var autoGenerate = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -37,9 +39,24 @@ public class App : Application
                     vm.OutputPath = args[++i];
                     break;
                 case "--auto-analyze":
-                    vm.AnalyzeCommand.Execute(null);
+                    autoAnalyze = true;
+                    break;
+                case "--auto-generate":
+                    autoAnalyze = true;
+                    autoGenerate = true;
                     break;
             }
         }
+
+        if (!autoAnalyze)
+            return;
+
+        // Run the same commands the buttons trigger, in sequence, off the UI thread pump.
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            await vm.AnalyzeCommand.ExecuteAsync(null);
+            if (autoGenerate && vm.Steps.Count > 0)
+                await vm.GenerateCommand.ExecuteAsync(null);
+        });
     }
 }
