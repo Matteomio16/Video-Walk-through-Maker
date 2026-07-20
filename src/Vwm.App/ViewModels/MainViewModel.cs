@@ -33,6 +33,12 @@ public partial class BoundaryItem(int afterStep, double time, double max) : Obse
 
 public sealed record ThumbItem(Avalonia.Media.Imaging.Bitmap Image, string TimeLabel);
 
+/// <summary>One entry in the voice dropdown: a specific Piper voice, the Windows voice, or eSpeak.</summary>
+public sealed record VoiceChoice(string Id, string DisplayName, Func<ITtsEngine> CreateEngine)
+{
+    public override string ToString() => DisplayName;
+}
+
 public partial class MainViewModel : ObservableObject
 {
     // --- navigation -----------------------------------------------------------
@@ -52,8 +58,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _errorMessage = "";
     [ObservableProperty] private bool _isBusy;
 
-    public ObservableCollection<string> Engines { get; } = [];
-    [ObservableProperty] private string _selectedEngine = "";
+    public ObservableCollection<VoiceChoice> Voices { get; } = [];
+    [ObservableProperty] private VoiceChoice? _selectedVoice;
 
     // --- review page ----------------------------------------------------------
     public ObservableCollection<StepItem> Steps { get; } = [];
@@ -71,27 +77,28 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        foreach (var engine in AvailableEngines())
-            Engines.Add(engine);
-        SelectedEngine = Engines.FirstOrDefault() ?? "";
+        foreach (var voice in AvailableVoices())
+            Voices.Add(voice);
+        SelectedVoice = Voices.FirstOrDefault();
     }
 
-    private static IEnumerable<string> AvailableEngines()
+    private static IEnumerable<VoiceChoice> AvailableVoices()
     {
         if (ToolLocator.Find("piper") is not null)
-            yield return "Piper (bundled neural voice)";
+        {
+            foreach (var v in PiperVoiceCatalog.Enumerate())
+                yield return new VoiceChoice(v.Id, v.DisplayName, () => new PiperTtsEngine(v));
+        }
         if (OperatingSystem.IsWindows())
-            yield return "Windows built-in voice";
+            yield return new VoiceChoice("windows", "Windows built-in voice", CreateWindowsEngine);
         if (ToolLocator.Find("espeak-ng") is not null)
-            yield return "eSpeak (test)";
+            yield return new VoiceChoice("espeak", "eSpeak (test voice)", () => new EspeakTtsEngine());
     }
 
-    private ITtsEngine CreateEngine() => SelectedEngine switch
-    {
-        var s when s.StartsWith("Piper") => new PiperTtsEngine(),
-        var s when s.StartsWith("Windows") => CreateWindowsEngine(),
-        _ => new EspeakTtsEngine(),
-    };
+    private ITtsEngine CreateEngine() =>
+        (SelectedVoice ?? throw new InvalidOperationException(
+            "No voice is available — reinstall the app so the bundled voices are present."))
+        .CreateEngine();
 
     private static ITtsEngine CreateWindowsEngine()
     {

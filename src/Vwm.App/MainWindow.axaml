@@ -32,7 +32,7 @@
 
       <Grid ColumnDefinitions="Auto,200,Auto,Auto" >
         <TextBlock Grid.Column="0" Text="Voice:" VerticalAlignment="Center" Margin="0,0,8,0" />
-        <ComboBox Grid.Column="1" ItemsSource="{Binding Engines}" SelectedItem="{Binding SelectedEngine}" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding Voices}" SelectedItem="{Binding SelectedVoice}" />
         <CheckBox Grid.Column="2" Margin="24,0,0,0" Content="Keep original audio (quiet, in background)"
                   IsChecked="{Binding KeepOriginalAudio}" />
       </Grid>

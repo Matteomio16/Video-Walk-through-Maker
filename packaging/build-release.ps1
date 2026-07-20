@@ -38,10 +38,21 @@ $piperzip = Join-Path $tmp "piper.zip"
 Invoke-WebRequest "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip" -OutFile $piperzip
 Expand-Archive $piperzip -DestinationPath $tools -Force   # creates tools\piper\piper.exe + data
 
-Write-Host "==> Downloading voice model (en_US lessac, medium)"
-$voiceBase = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium"
-Invoke-WebRequest "$voiceBase/en_US-lessac-medium.onnx"      -OutFile (Join-Path $tools "voices/en_US-lessac-medium.onnx")
-Invoke-WebRequest "$voiceBase/en_US-lessac-medium.onnx.json" -OutFile (Join-Path $tools "voices/en_US-lessac-medium.onnx.json")
+Write-Host "==> Downloading voice models"
+# Each entry is lang/name/quality on huggingface rhasspy/piper-voices; the model id
+# is "{lang}-{name}-{quality}". The app lists every .onnx it finds in tools/voices,
+# sorted medium-quality first, so hfc_female (the most natural medium voice) is the
+# default and ryan-high is the larger, best-quality option.
+$voices = @(
+  @{ Path = "en/en_US/hfc_female/medium"; Id = "en_US-hfc_female-medium" },
+  @{ Path = "en/en_US/ryan/high";         Id = "en_US-ryan-high" }
+)
+foreach ($v in $voices) {
+  Write-Host "    $($v.Id)"
+  $base = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$($v.Path)"
+  Invoke-WebRequest "$base/$($v.Id).onnx"      -OutFile (Join-Path $tools "voices/$($v.Id).onnx")
+  Invoke-WebRequest "$base/$($v.Id).onnx.json" -OutFile (Join-Path $tools "voices/$($v.Id).onnx.json")
+}
 
 Write-Host "==> Zipping"
 $zip = Join-Path $dist "VideoWalkthroughMaker-win-x64.zip"

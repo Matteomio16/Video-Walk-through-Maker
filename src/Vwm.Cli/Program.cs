@@ -13,6 +13,7 @@ try
     {
         "make" => await MakeAsync(opts),
         "detect" => await DetectAsync(opts),
+        "voices" => ListVoices(),
         _ => Usage(),
     };
 }
@@ -34,9 +35,12 @@ static int Usage()
 
         usage:
           vwm make --video <in.mp4> --script <script.txt> --out <out.mp4>
-                   [--engine espeak|piper] [--piper-model <voice.onnx>]
-                   [--boundaries <boundaries.json>] [--threshold 0.005]
-                   [--keep-original-audio] [--work-dir <dir>]
+                   [--engine espeak|piper|windows] [--voice <piper voice id or windows voice name>]
+                   [--piper-model <voice.onnx>] [--boundaries <boundaries.json>]
+                   [--threshold 0.005] [--keep-original-audio] [--work-dir <dir>]
+
+          vwm voices
+                   List the bundled Piper voice ids.
 
           vwm detect --video <in.mp4> --steps <N> [--script <script.txt>] [--threshold 0.005]
                    Prints proposed step boundaries (seconds) as JSON. With --script,
@@ -47,13 +51,39 @@ static int Usage()
 
 static ITtsEngine CreateEngine(Args opts) => opts.Get("engine", "piper") switch
 {
-    "piper" => new PiperTtsEngine(modelPath: opts.GetOrNull("piper-model")),
+    "piper" => CreatePiperEngine(opts),
     "espeak" => new EspeakTtsEngine(),
 #if WINDOWS10_0_19041_0_OR_GREATER
     "windows" => new Vwm.Tts.Windows.WindowsTtsEngine(opts.GetOrNull("voice")),
 #endif
     var e => throw new ArgumentException($"Unknown engine '{e}'. Use piper, espeak or windows."),
 };
+
+static PiperTtsEngine CreatePiperEngine(Args opts)
+{
+    if (opts.GetOrNull("piper-model") is string modelPath)
+        return new PiperTtsEngine(modelPath: modelPath);
+    if (opts.GetOrNull("voice") is string id)
+    {
+        var voice = PiperVoiceCatalog.FindById(id)
+            ?? throw new ArgumentException($"Unknown voice '{id}'. Run 'vwm voices' to list the bundled voices.");
+        return new PiperTtsEngine(voice);
+    }
+    return new PiperTtsEngine();
+}
+
+static int ListVoices()
+{
+    var voices = PiperVoiceCatalog.Enumerate();
+    if (voices.Count == 0)
+    {
+        Console.Error.WriteLine("No Piper voices found (looked in 'tools/voices' next to the app).");
+        return 1;
+    }
+    foreach (var v in voices)
+        Console.WriteLine($"{v.Id,-30} {v.DisplayName}");
+    return 0;
+}
 
 static async Task<int> MakeAsync(Args opts)
 {

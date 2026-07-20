@@ -6,13 +6,16 @@ namespace Vwm.Core.Tts;
 /// <summary>
 /// Piper neural TTS: a self-contained local binary, no network access at all.
 /// Text goes in on stdin, a WAV comes out. The default engine for the packaged app.
+/// Several voice models can be bundled (see <see cref="PiperVoiceCatalog"/>); each
+/// engine instance is bound to one model.
 /// </summary>
 public sealed class PiperTtsEngine : ITtsEngine
 {
     private readonly string _piperPath;
     private readonly string _modelPath;
 
-    public string Name => "piper";
+    /// <summary>Includes the voice id so per-voice outputs (e.g. preview caches) never collide.</summary>
+    public string Name => $"piper-{Path.GetFileNameWithoutExtension(_modelPath)}";
 
     public PiperTtsEngine(string? piperPath = null, string? modelPath = null)
     {
@@ -20,16 +23,13 @@ public sealed class PiperTtsEngine : ITtsEngine
             ?? ToolLocator.Find("piper")
             ?? throw new ToolNotFoundException("piper", "bundle piper in the 'tools/piper' folder next to the app");
         _modelPath = modelPath
-            ?? FindDefaultModel()
+            ?? PiperVoiceCatalog.Enumerate().FirstOrDefault()?.ModelPath
             ?? throw new ToolNotFoundException("piper voice model (.onnx)", "place a voice model in the 'tools/voices' folder next to the app");
     }
 
-    private static string? FindDefaultModel()
+    public PiperTtsEngine(PiperVoice voice, string? piperPath = null)
+        : this(piperPath, voice.ModelPath)
     {
-        var voicesDir = Path.Combine(AppContext.BaseDirectory, "tools", "voices");
-        return Directory.Exists(voicesDir)
-            ? Directory.EnumerateFiles(voicesDir, "*.onnx").OrderBy(f => f).FirstOrDefault()
-            : null;
     }
 
     public async Task<TtsClip> SynthesizeAsync(string text, string outputWavPath, CancellationToken ct = default)
