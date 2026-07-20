@@ -18,8 +18,12 @@ $app  = Join-Path $dist "VideoWalkthroughMaker"
 $tools = Join-Path $app "tools"
 
 Write-Host "==> Publishing app and CLI (self-contained win-x64)"
+# -p:Platform=x64 is required for VideoLAN.LibVLC.Windows' MSBuild targets to fire —
+# they gate the native libvlc\win-x64 copy on the classic $(Platform) property, which
+# `dotnet publish -r win-x64` does not set on its own. Without this the app publishes
+# fine but silently has no libvlc, and the in-app preview falls back to the OS player.
 dotnet publish (Join-Path $root "src/Vwm.App") -c Release -f net8.0-windows10.0.19041.0 `
-  -r win-x64 --self-contained -p:PublishSingleFile=true -o $app
+  -r win-x64 --self-contained -p:PublishSingleFile=true -p:Platform=x64 -o $app
 if ($LASTEXITCODE -ne 0) { throw "app publish failed" }
 dotnet publish (Join-Path $root "src/Vwm.Cli") -c Release -f net8.0-windows10.0.19041.0 `
   -r win-x64 --self-contained -p:PublishSingleFile=true -o $app
