@@ -1,12 +1,16 @@
 <#
 .SYNOPSIS
-  Builds the distributable Windows zip: self-contained app + bundled ffmpeg, Piper TTS and voice.
+  Builds the Windows distribution: self-contained app + bundled ffmpeg, Piper TTS,
+  voices and libvlc, wrapped into a one-click installer (VideoWalkthroughMaker-Setup.exe).
 
   Run on a machine with internet access (only needed at BUILD time — the packaged
-  app makes no network calls). Requires the .NET 8 SDK.
+  app makes no network calls). Requires the .NET 8 SDK, and Inno Setup 6 for the
+  installer step (winget install JRSoftware.InnoSetup). Without Inno Setup a plain
+  zip is produced instead.
 
-    powershell -ExecutionPolicy Bypass -File packaging\build-release.ps1
+    powershell -ExecutionPolicy Bypass -File packaging\build-release.ps1 [-Version 1.2.3]
 #>
+param([string]$Version = "1.0.0")
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root "dist"
@@ -54,11 +58,28 @@ foreach ($v in $voices) {
   Invoke-WebRequest "$base/$($v.Id).onnx.json" -OutFile (Join-Path $tools "voices/$($v.Id).onnx.json")
 }
 
-Write-Host "==> Zipping"
-$zip = Join-Path $dist "VideoWalkthroughMaker-win-x64.zip"
-if (Test-Path $zip) { Remove-Item $zip }
-Compress-Archive -Path $app -DestinationPath $zip
 Remove-Item $tmp -Recurse -Force
 
-Write-Host "==> Done: $zip"
-Write-Host "    Distribute the zip; users just extract it and run VideoWalkthroughMaker.exe."
+# --- Installer (preferred) or zip fallback -----------------------------------
+$iscc = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) |
+  Where-Object { $_ } |
+  ForEach-Object { Join-Path $_ "Inno Setup 6\ISCC.exe" } |
+  Where-Object { Test-Path $_ } |
+  Select-Object -First 1
+if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source }
+
+if ($iscc) {
+  Write-Host "==> Building installer (Inno Setup)"
+  & $iscc /Qp "/DAppVersion=$Version" "/DDistDir=$app" (Join-Path $PSScriptRoot "installer.iss")
+  if ($LASTEXITCODE -ne 0) { throw "installer build failed" }
+  Write-Host "==> Done: $(Join-Path $dist 'VideoWalkthroughMaker-Setup.exe')"
+  Write-Host "    Hand users the setup exe — double-click, next, done. Installs per-user"
+  Write-Host "    (no admin rights), adds a Start Menu shortcut, never shows a console."
+}
+else {
+  Write-Warning "Inno Setup not found (winget install JRSoftware.InnoSetup) — producing a plain zip instead."
+  $zip = Join-Path $dist "VideoWalkthroughMaker-win-x64.zip"
+  if (Test-Path $zip) { Remove-Item $zip }
+  Compress-Archive -Path $app -DestinationPath $zip
+  Write-Host "==> Done: $zip (users extract it and run VideoWalkthroughMaker.exe)"
+}

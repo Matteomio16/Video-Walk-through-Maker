@@ -19,6 +19,9 @@ public static class ProcessRunner
             RedirectStandardError = true,
             RedirectStandardInput = stdin is not null,
             UseShellExecute = false,
+            // Without this, every ffmpeg/piper invocation from the GUI app flashes a
+            // console window on Windows.
+            CreateNoWindow = true,
             WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
         };
         foreach (var a in args)
