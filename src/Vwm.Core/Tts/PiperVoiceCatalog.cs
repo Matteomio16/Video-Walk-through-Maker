@@ -66,8 +66,8 @@ public static class PiperVoiceCatalog
     private static readonly Dictionary<string, string> KnownNames = new()
     {
         // dataset names whose word-by-word title-casing reads wrong
-        ["hfc_female"] = "Heather (HFC female)",
-        ["hfc_male"] = "Harry (HFC male)",
+        ["hfc_female"] = "Heather",
+        ["hfc_male"] = "Harry",
         ["libritts_r"] = "LibriTTS-R",
     };
 }

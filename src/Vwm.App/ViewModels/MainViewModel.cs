@@ -43,12 +43,17 @@ public partial class MainViewModel : ObservableObject
 {
     // --- navigation -----------------------------------------------------------
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsInputPage), nameof(IsReviewPage), nameof(IsGeneratePage))]
+    [NotifyPropertyChangedFor(nameof(IsInputPage), nameof(IsReviewPage), nameof(IsGeneratePage),
+        nameof(IsReviewReached), nameof(IsGenerateReached))]
     private int _pageIndex;
 
     public bool IsInputPage => PageIndex == 0;
     public bool IsReviewPage => PageIndex == 1;
     public bool IsGeneratePage => PageIndex == 2;
+
+    // stepper highlighting: a step stays lit once the wizard has reached it
+    public bool IsReviewReached => PageIndex >= 1;
+    public bool IsGenerateReached => PageIndex >= 2;
 
     // --- input page -----------------------------------------------------------
     [ObservableProperty] private string _videoPath = "";
@@ -181,6 +186,7 @@ public partial class MainViewModel : ObservableObject
     private void BackToInput()
     {
         StopPlayback();
+        IsClipPreviewOpen = false;
         PageIndex = 0;
     }
 
@@ -267,7 +273,17 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Video+voice preview of one step; opens in the OS default player.</summary>
+    /// <summary>True while the in-app clip player panel is showing.</summary>
+    [ObservableProperty] private bool _isClipPreviewOpen;
+
+    /// <summary>
+    /// Raised when a step's video+voice preview clip is ready to play. The window
+    /// plays it in the embedded player (or falls back to the OS player if the
+    /// native playback libraries are unavailable).
+    /// </summary>
+    public event Action<string, string>? ClipPreviewRequested;
+
+    /// <summary>Video+voice preview of one step, played inside the app.</summary>
     [RelayCommand]
     private async Task PreviewClipAsync(StepItem step)
     {
@@ -287,7 +303,7 @@ public partial class MainViewModel : ObservableObject
             var previewDir = Path.Combine(_workDir, "preview");
             var wav = await PreviewBuilder.BuildVoicePreviewAsync(step.ToScriptStep(), CreateEngine(), previewDir);
             var clip = await PreviewBuilder.BuildClipPreviewAsync(VideoPath, sourceStart, sourceEnd, wav, previewDir);
-            Process.Start(new ProcessStartInfo(clip) { UseShellExecute = true });
+            ClipPreviewRequested?.Invoke(clip, $"Preview — {step.Header}");
         }
         catch (Exception ex)
         {
@@ -299,10 +315,15 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Last-resort clip preview when embedded playback isn't available.</summary>
+    public static void OpenInExternalPlayer(string path) =>
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+
     [RelayCommand]
     private async Task GenerateAsync()
     {
         StopPlayback();
+        IsClipPreviewOpen = false;
         ErrorMessage = "";
         var boundaries = Boundaries.Select(b => b.TimeSeconds).ToList();
         if (boundaries.Zip(boundaries.Skip(1)).Any(p => p.Second <= p.First) ||

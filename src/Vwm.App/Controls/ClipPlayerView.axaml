@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+             x:Class="Vwm.App.Controls.ClipPlayerView">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="2,0,2,8">
+      <TextBlock x:Name="TitleText" Classes="h2" VerticalAlignment="Center" Text="Preview" />
+      <Button Grid.Column="1" Classes="secondary small" Content="✕ Close" Click="OnCloseClick" />
+    </Grid>
+
+    <Border Grid.Row="1" Background="{StaticResource PlayerBackgroundBrush}" CornerRadius="8"
+            ClipToBounds="True" MinHeight="200">
+      <vlc:VideoView x:Name="Video" />
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="2,10,2,0">
+      <Button x:Name="PlayPauseButton" Classes="secondary small" MinWidth="44"
+              HorizontalContentAlignment="Center" Content="⏸" Click="OnPlayPauseClick" />
+      <Slider x:Name="SeekSlider" Grid.Column="1" Margin="10,0" Minimum="0" Maximum="1"
+              ValueChanged="OnSeek" VerticalAlignment="Center" />
+      <TextBlock x:Name="TimeText" Grid.Column="2" Classes="hint" VerticalAlignment="Center"
+                 Text="0:00 / 0:00" MinWidth="76" TextAlignment="Right" />
+    </Grid>
+  </Grid>
+</UserControl>

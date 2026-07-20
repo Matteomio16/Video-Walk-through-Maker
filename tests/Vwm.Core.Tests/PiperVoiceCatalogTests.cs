@@ -7,7 +7,7 @@ public class PiperVoiceCatalogTests
 {
     [Theory]
     [InlineData("en_US-ryan-high", "Ryan (English, US) — high quality", "en_US")]
-    [InlineData("en_US-hfc_female-medium", "Heather (HFC female) (English, US)", "en_US")]
+    [InlineData("en_US-hfc_female-medium", "Heather (English, US)", "en_US")]
     [InlineData("en_GB-alan-medium", "Alan (English, UK)", "en_GB")]
     [InlineData("de_DE-thorsten-medium", "Thorsten (de-DE)", "de_DE")]
     public void FromModelPath_parses_id_language_and_display_name(string id, string display, string language)

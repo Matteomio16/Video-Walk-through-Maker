@@ -20,10 +20,11 @@ public class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    /// <summary>Optional prefill/automation: --video, --script-file, --out, --auto-analyze, --auto-generate.</summary>
+    /// <summary>Optional prefill/automation: --video, --script-file, --out, --auto-analyze, --auto-preview, --auto-generate.</summary>
     private static void ApplyCommandLine(MainViewModel vm, string[] args)
     {
         var autoAnalyze = false;
+        var autoPreview = false;
         var autoGenerate = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -41,6 +42,10 @@ public class App : Application
                 case "--auto-analyze":
                     autoAnalyze = true;
                     break;
+                case "--auto-preview":
+                    autoAnalyze = true;
+                    autoPreview = true;
+                    break;
                 case "--auto-generate":
                     autoAnalyze = true;
                     autoGenerate = true;
@@ -55,6 +60,8 @@ public class App : Application
         Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
             await vm.AnalyzeCommand.ExecuteAsync(null);
+            if (autoPreview && vm.Steps.Count > 0)
+                await vm.PreviewClipCommand.ExecuteAsync(vm.Steps[0]);
             if (autoGenerate && vm.Steps.Count > 0)
                 await vm.GenerateCommand.ExecuteAsync(null);
         });

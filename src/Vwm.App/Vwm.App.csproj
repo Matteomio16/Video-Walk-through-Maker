@@ -8,16 +8,21 @@
     <AssemblyName>VideoWalkthroughMaker</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.0.10" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
+    <PackageReference Include="Avalonia" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.18" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <!-- In-app video preview. LibVLCSharp is LGPL; libvlc is loaded dynamically at
+         runtime and the app degrades to the OS player when it is missing. -->
+    <PackageReference Include="LibVLCSharp.Avalonia" Version="3.10.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Vwm.Core/Vwm.Core.csproj" />
   </ItemGroup>
   <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
     <ProjectReference Include="../Vwm.Tts.Windows/Vwm.Tts.Windows.csproj" />
+    <!-- Native libvlc for the packaged Windows app (copied to libvlc/win-x64 on publish). -->
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
   </ItemGroup>
 </Project>

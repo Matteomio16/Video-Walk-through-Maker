@@ -2,7 +2,166 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Vwm.App.App"
              RequestedThemeVariant="Light">
+
+  <Application.Resources>
+    <!-- palette -->
+    <!-- retint every Fluent accent-colored control (sliders, checkboxes, progress bars…) -->
+    <Color x:Key="SystemAccentColor">#4F46E5</Color>
+    <Color x:Key="SystemAccentColorDark1">#4338CA</Color>
+    <Color x:Key="SystemAccentColorDark2">#3730A3</Color>
+    <Color x:Key="SystemAccentColorDark3">#312E81</Color>
+    <Color x:Key="SystemAccentColorLight1">#6366F1</Color>
+    <Color x:Key="SystemAccentColorLight2">#818CF8</Color>
+    <Color x:Key="SystemAccentColorLight3">#A5B4FC</Color>
+    <Color x:Key="AppBackgroundColor">#F2F4F8</Color>
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+    <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#E2E7F0" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4F46E5" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#4338CA" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#3730A3" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#E4E7FB" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1B2437" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5D6A85" />
+    <SolidColorBrush x:Key="TextFaintBrush" Color="#8B96AC" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#D64545" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#1F9D55" />
+    <SolidColorBrush x:Key="PlayerBackgroundBrush" Color="#12151C" />
+  </Application.Resources>
+
   <Application.Styles>
     <FluentTheme />
+
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- typography -->
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.faint">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{StaticResource TextFaintBrush}" />
+    </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- cards -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource CardBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="BoxShadow" Value="0 1 4 0 #14324063" />
+    </Style>
+
+    <!-- buttons -->
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="14,7" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="18,10" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentPressedBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#C9D2E3" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F4F6FB" />
+    </Style>
+    <Style Selector="Button.small">
+      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <!-- inputs -->
+    <Style Selector="TextBox">
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#C9D2E3" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#C9D2E3" />
+    </Style>
+
+    <!-- wizard stepper -->
+    <Style Selector="Border.stepDot">
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="CornerRadius" Value="13" />
+      <Setter Property="Background" Value="#DDE3EE" />
+    </Style>
+    <Style Selector="Border.stepDot.active">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    </Style>
+    <Style Selector="Border.stepDot > TextBlock">
+      <Setter Property="Foreground" Value="#5D6A85" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.stepDot.active > TextBlock">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="TextBlock.stepLabel">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{StaticResource TextFaintBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.stepLabel.active">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Rectangle.stepLine">
+      <Setter Property="Height" Value="2" />
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Fill" Value="#DDE3EE" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- step number badge on review cards -->
+    <Style Selector="Border.stepBadge">
+      <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Border.stepBadge > TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
   </Application.Styles>
 </Application>

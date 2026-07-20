@@ -15,6 +15,28 @@ public partial class MainWindow : Window
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, (_, e) => e.DragEffects = DragDropEffects.Copy);
+
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+            vm.ClipPreviewRequested += OnClipPreviewRequested;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.IsClipPreviewOpen) && !vm.IsClipPreviewOpen)
+                    ClipPlayer.Stop();
+            };
+        };
+        ClipPlayer.Closed += (_, _) => Vm.IsClipPreviewOpen = false;
+        Closed += (_, _) => ClipPlayer.Shutdown();
+    }
+
+    private void OnClipPreviewRequested(string clipPath, string title)
+    {
+        if (ClipPlayer.TryPlay(clipPath, title))
+            Vm.IsClipPreviewOpen = true;
+        else
+            MainViewModel.OpenInExternalPlayer(clipPath); // no local libvlc — OS player fallback
     }
 
     private async void OnDrop(object? sender, DragEventArgs e)
