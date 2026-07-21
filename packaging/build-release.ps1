@@ -3,7 +3,7 @@
   Builds the Windows distribution: self-contained app + bundled ffmpeg, Piper TTS,
   voices and libvlc, wrapped into a one-click installer (VideoWalkthroughMaker-Setup.exe).
 
-  Run on a machine with internet access (only needed at BUILD time — the packaged
+  Run on a machine with internet access (only needed at BUILD time - the packaged
   app makes no network calls). Requires the .NET 8 SDK, and Inno Setup 6 for the
   installer step (winget install JRSoftware.InnoSetup). Without Inno Setup a plain
   zip is produced instead.
@@ -12,13 +12,40 @@
 #>
 param([string]$Version = "1.0.0")
 $ErrorActionPreference = "Stop"
+# Windows PowerShell 5.1 renders a per-byte progress bar for Invoke-WebRequest
+# that throttles downloads 10-50x and is invisible once the console scrolls -
+# making the ~100MB+ ffmpeg/voice downloads look frozen. Suppressing it both
+# speeds them up and stops them looking hung.
+$ProgressPreference = "SilentlyContinue"
+# Some CDNs (gyan.dev) return 503 to PowerShell's default "WindowsPowerShell/x.y"
+# user agent, apparently via WAF bot-filtering. A browser-like UA avoids it.
+$ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+
+# gyan.dev (and occasionally huggingface) throw transient 503s / connection
+# resets on the large-file fetches, especially under repeated builds. Retry
+# with backoff so one blip doesn't sink the whole build.
+function Get-File($Url, $OutFile) {
+  $max = 5
+  for ($i = 1; $i -le $max; $i++) {
+    try {
+      Invoke-WebRequest $Url -OutFile $OutFile -UserAgent $ua
+      return
+    } catch {
+      if ($i -eq $max) { throw }
+      $wait = 5 * $i
+      Write-Warning "    download failed (attempt $i/$max): $($_.Exception.Message). Retrying in ${wait}s..."
+      Start-Sleep -Seconds $wait
+    }
+  }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root "dist"
 $app  = Join-Path $dist "VideoWalkthroughMaker"
 $tools = Join-Path $app "tools"
 
 Write-Host "==> Publishing app and CLI (self-contained win-x64)"
-# -p:Platform=x64 is required for VideoLAN.LibVLC.Windows' MSBuild targets to fire —
+# -p:Platform=x64 is required for VideoLAN.LibVLC.Windows' MSBuild targets to fire -
 # they gate the native libvlc\win-x64 copy on the classic $(Platform) property, which
 # `dotnet publish -r win-x64` does not set on its own. Without this the app publishes
 # fine but silently has no libvlc, and the in-app preview falls back to the OS player.
@@ -35,7 +62,7 @@ New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 
 Write-Host "==> Downloading ffmpeg (gyan.dev release essentials)"
 $ffzip = Join-Path $tmp "ffmpeg.zip"
-Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile $ffzip
+Get-File "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" $ffzip
 Expand-Archive $ffzip -DestinationPath $tmp -Force
 Get-ChildItem $tmp -Recurse -Include ffmpeg.exe, ffprobe.exe, ffplay.exe | ForEach-Object {
   Copy-Item $_.FullName $tools -Force
@@ -43,7 +70,7 @@ Get-ChildItem $tmp -Recurse -Include ffmpeg.exe, ffprobe.exe, ffplay.exe | ForEa
 
 Write-Host "==> Downloading Piper TTS"
 $piperzip = Join-Path $tmp "piper.zip"
-Invoke-WebRequest "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip" -OutFile $piperzip
+Get-File "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip" $piperzip
 Expand-Archive $piperzip -DestinationPath $tools -Force   # creates tools\piper\piper.exe + data
 
 Write-Host "==> Downloading voice models"
@@ -58,14 +85,17 @@ $voices = @(
 foreach ($v in $voices) {
   Write-Host "    $($v.Id)"
   $base = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$($v.Path)"
-  Invoke-WebRequest "$base/$($v.Id).onnx"      -OutFile (Join-Path $tools "voices/$($v.Id).onnx")
-  Invoke-WebRequest "$base/$($v.Id).onnx.json" -OutFile (Join-Path $tools "voices/$($v.Id).onnx.json")
+  Get-File "$base/$($v.Id).onnx"      (Join-Path $tools "voices/$($v.Id).onnx")
+  Get-File "$base/$($v.Id).onnx.json" (Join-Path $tools "voices/$($v.Id).onnx.json")
 }
 
 Remove-Item $tmp -Recurse -Force
 
 # --- Installer (preferred) or zip fallback -----------------------------------
-$iscc = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) |
+# winget installs Inno Setup 6.7+ per-user under %LOCALAPPDATA%\Programs by
+# default, not Program Files - so search there too or we'd silently fall back
+# to the zip even with Inno Setup installed.
+$iscc = @(${env:ProgramFiles(x86)}, $env:ProgramFiles, (Join-Path $env:LOCALAPPDATA "Programs")) |
   Where-Object { $_ } |
   ForEach-Object { Join-Path $_ "Inno Setup 6\ISCC.exe" } |
   Where-Object { Test-Path $_ } |
@@ -77,13 +107,20 @@ if ($iscc) {
   & $iscc /Qp "/DAppVersion=$Version" "/DDistDir=$app" (Join-Path $PSScriptRoot "installer.iss")
   if ($LASTEXITCODE -ne 0) { throw "installer build failed" }
   Write-Host "==> Done: $(Join-Path $dist 'VideoWalkthroughMaker-Setup.exe')"
-  Write-Host "    Hand users the setup exe — double-click, next, done. Installs per-user"
+  Write-Host "    Hand users the setup exe - double-click, next, done. Installs per-user"
   Write-Host "    (no admin rights), adds a Start Menu shortcut, never shows a console."
 }
 else {
-  Write-Warning "Inno Setup not found (winget install JRSoftware.InnoSetup) — producing a plain zip instead."
+  Write-Warning "Inno Setup not found (winget install JRSoftware.InnoSetup) - producing a plain zip instead."
   $zip = Join-Path $dist "VideoWalkthroughMaker-win-x64.zip"
   if (Test-Path $zip) { Remove-Item $zip }
-  Compress-Archive -Path $app -DestinationPath $zip
+  # Compress-Archive is single-threaded and gives no progress output - on the
+  # ~800MB app folder it can silently take minutes and look hung. The .NET
+  # ZipFile API with Fastest compression is much quicker and we log first so
+  # a slow run doesn't look like a stall.
+  Write-Host "==> Zipping $app (this can take a minute)..."
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  [System.IO.Compression.ZipFile]::CreateFromDirectory(
+    $app, $zip, [System.IO.Compression.CompressionLevel]::Fastest, $false)
   Write-Host "==> Done: $zip (users extract it and run VideoWalkthroughMaker.exe)"
 }
