@@ -23,12 +23,21 @@ $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 # gyan.dev (and occasionally huggingface) throw transient 503s / connection
 # resets on the large-file fetches, especially under repeated builds. Retry
-# with backoff so one blip doesn't sink the whole build.
-function Get-File($Url, $OutFile) {
+# with backoff so one blip doesn't sink the whole build. When a SHA-256 is
+# given the download is verified against it and a mismatch (corrupt or tampered
+# artifact) aborts the build; a bad hash also triggers a re-download in case it
+# was just a truncated transfer.
+function Get-File($Url, $OutFile, $Sha256) {
   $max = 5
   for ($i = 1; $i -le $max; $i++) {
     try {
       Invoke-WebRequest $Url -OutFile $OutFile -UserAgent $ua
+      if ($Sha256) {
+        $actual = (Get-FileHash $OutFile -Algorithm SHA256).Hash
+        if ($actual -ne $Sha256) {
+          throw "SHA-256 mismatch for $Url (expected $Sha256, got $actual)"
+        }
+      }
       return
     } catch {
       if ($i -eq $max) { throw }
@@ -38,6 +47,16 @@ function Get-File($Url, $OutFile) {
     }
   }
 }
+
+# Pinned build artifacts and their SHA-256 hashes. Pinning makes builds
+# reproducible; the hashes (also published in README.md) are verified on every
+# download so a tampered or corrupted CDN artifact aborts the build. To bump a
+# version, change the URL and its hash together. gyan.dev keeps versioned
+# ffmpeg builds under builds/packages/.
+$ffmpegUrl = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip"
+$ffmpegSha = "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec"
+$piperUrl  = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
+$piperSha  = "f3c58906402b24f3a96d92145f58acba6d86c9b5db896d207f78dc80811efcea"
 
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root "dist"
@@ -60,9 +79,9 @@ New-Item -ItemType Directory -Force -Path $tools, (Join-Path $tools "voices") | 
 $tmp = Join-Path $dist "downloads"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 
-Write-Host "==> Downloading ffmpeg (gyan.dev release essentials)"
+Write-Host "==> Downloading ffmpeg (gyan.dev essentials, pinned + verified)"
 $ffzip = Join-Path $tmp "ffmpeg.zip"
-Get-File "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" $ffzip
+Get-File $ffmpegUrl $ffzip $ffmpegSha
 Expand-Archive $ffzip -DestinationPath $tmp -Force
 Get-ChildItem $tmp -Recurse -Include ffmpeg.exe, ffprobe.exe, ffplay.exe | ForEach-Object {
   Copy-Item $_.FullName $tools -Force
@@ -70,7 +89,7 @@ Get-ChildItem $tmp -Recurse -Include ffmpeg.exe, ffprobe.exe, ffplay.exe | ForEa
 
 Write-Host "==> Downloading Piper TTS"
 $piperzip = Join-Path $tmp "piper.zip"
-Get-File "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip" $piperzip
+Get-File $piperUrl $piperzip $piperSha
 Expand-Archive $piperzip -DestinationPath $tools -Force   # creates tools\piper\piper.exe + data
 
 Write-Host "==> Downloading voice models"
@@ -79,14 +98,18 @@ Write-Host "==> Downloading voice models"
 # sorted medium-quality first, so hfc_female (the most natural medium voice) is the
 # default and ryan-high is the larger, best-quality option.
 $voices = @(
-  @{ Path = "en/en_US/hfc_female/medium"; Id = "en_US-hfc_female-medium" },
-  @{ Path = "en/en_US/ryan/high";         Id = "en_US-ryan-high" }
+  @{ Path = "en/en_US/hfc_female/medium"; Id = "en_US-hfc_female-medium"
+     OnnxSha = "914c473788fc1fa8b63ace1cdcdb44588f4ae523d3ab37df1536616835a140b7"
+     JsonSha = "03f1fa0622b80463283592d97aca9f6e89aec345a5c56b7257723e0093c58b6c" },
+  @{ Path = "en/en_US/ryan/high";         Id = "en_US-ryan-high"
+     OnnxSha = "b3990d7606e183ec8dbfba70a4607074f162de1a0c412e0180d1ff60bb154eca"
+     JsonSha = "c6d3b98f08315cb4bebf0d49d50fc4ff491b503c64b940cd3d5ca28543b48011" }
 )
 foreach ($v in $voices) {
   Write-Host "    $($v.Id)"
   $base = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$($v.Path)"
-  Get-File "$base/$($v.Id).onnx"      (Join-Path $tools "voices/$($v.Id).onnx")
-  Get-File "$base/$($v.Id).onnx.json" (Join-Path $tools "voices/$($v.Id).onnx.json")
+  Get-File "$base/$($v.Id).onnx"      (Join-Path $tools "voices/$($v.Id).onnx")      $v.OnnxSha
+  Get-File "$base/$($v.Id).onnx.json" (Join-Path $tools "voices/$($v.Id).onnx.json") $v.JsonSha
 }
 
 Remove-Item $tmp -Recurse -Force

@@ -39,12 +39,27 @@ Tips
   process, or the Windows speech engine that ships with the OS), video processing
   (bundled ffmpeg) and in-app preview playback (bundled libvlc) all happen on the
   user's machine. The app contains no telemetry, no cloud calls, no API keys.
+  This is enforced, not just asserted: the `NoNetworkGuard` unit test fails the build
+  if the core engine (`Vwm.Core`) ever gains a reference to any `System.Net.*`
+  networking assembly, so a stray `HttpClient`/socket call cannot ship undetected.
 - Bundled third-party binaries (all fetched at *package* time by `packaging/build-release.ps1`
   or NuGet): [ffmpeg](https://ffmpeg.org) (GPL build from gyan.dev),
   [Piper](https://github.com/rhasspy/piper) (MIT) with voice models from
   [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) (MIT), and
   [libvlc](https://www.videolan.org/vlc/libvlc.html) (LGPL, loaded dynamically) for the
   embedded preview player.
+- **Verified, pinned downloads.** The build fetches specific pinned versions and checks
+  each against a known SHA-256 before bundling it, aborting on any mismatch. A reviewer
+  can confirm exactly what ships:
+
+  | Artifact | SHA-256 |
+  |---|---|
+  | `ffmpeg-8.1.2-essentials_build.zip` | `db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec` |
+  | `piper_windows_amd64.zip` (2023.11.14-2) | `f3c58906402b24f3a96d92145f58acba6d86c9b5db896d207f78dc80811efcea` |
+  | `en_US-hfc_female-medium.onnx` | `914c473788fc1fa8b63ace1cdcdb44588f4ae523d3ab37df1536616835a140b7` |
+  | `en_US-hfc_female-medium.onnx.json` | `03f1fa0622b80463283592d97aca9f6e89aec345a5c56b7257723e0093c58b6c` |
+  | `en_US-ryan-high.onnx` | `b3990d7606e183ec8dbfba70a4607074f162de1a0c412e0180d1ff60bb154eca` |
+  | `en_US-ryan-high.onnx.json` | `c6d3b98f08315cb4bebf0d49d50fc4ff491b503c64b940cd3d5ca28543b48011` |
 - If policy forbids the bundled binaries, users can select **"Windows built-in voice"**
   (100% Microsoft-shipped software); ffmpeg and libvlc remain as third-party components
   (previews fall back to the user's default video player if libvlc is removed).
