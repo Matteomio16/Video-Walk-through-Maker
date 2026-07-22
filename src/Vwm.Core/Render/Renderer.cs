@@ -4,13 +4,39 @@ using Vwm.Core.Tools;
 
 namespace Vwm.Core.Render;
 
+/// <summary>Subtitle placement. Values are ffmpeg/libass legacy-SSA alignment codes
+/// for the horizontally-centered column (2=bottom, 6=top, 10=middle) — verified by
+/// render; note this is NOT the ASS "numpad" scheme where these would differ.</summary>
+public enum SubtitlePosition { Bottom = 2, Top = 6, Middle = 10 }
+
+/// <summary>Backing behind subtitle text: the semi-transparent grey box, or a plain
+/// drop shadow + outline (no box) so the text sits directly on the video.</summary>
+public enum SubtitleBackgroundStyle { Box, Shadow }
+
 public sealed record RenderOptions
 {
     public bool KeepOriginalAudio { get; init; }
     /// <summary>Output frame rate. Screen recordings are often variable-frame-rate; normalizing makes concat safe.</summary>
     public int Fps { get; init; } = 30;
-    public string SubtitleStyle { get; init; } =
-        "FontName=Arial,FontSize=16,PrimaryColour=&H00FFFFFF,BackColour=&H90000000,BorderStyle=4,Outline=0,Shadow=0,MarginV=28";
+    public string SubtitleFont { get; init; } = "Arial";
+    public int SubtitleFontSize { get; init; } = 16;
+    public SubtitlePosition SubtitlePosition { get; init; } = SubtitlePosition.Bottom;
+    public SubtitleBackgroundStyle SubtitleBackground { get; init; } = SubtitleBackgroundStyle.Box;
+
+    /// <summary>ASS force_style string built from the chosen font, size, placement and backing.</summary>
+    public string SubtitleStyle
+    {
+        get
+        {
+            var s = $"FontName={SubtitleFont},FontSize={SubtitleFontSize},PrimaryColour=&H00FFFFFF," +
+                    $"Alignment={(int)SubtitlePosition},MarginV=28,";
+            // BorderStyle=4 draws the opaque box in BackColour; BorderStyle=1 draws a
+            // coloured outline (Outline px) plus a drop shadow (Shadow px) instead.
+            return s + (SubtitleBackground == SubtitleBackgroundStyle.Box
+                ? "BackColour=&H90000000,BorderStyle=4,Outline=0,Shadow=0"
+                : "OutlineColour=&H00000000,BackColour=&H80000000,BorderStyle=1,Outline=2,Shadow=2");
+        }
+    }
 }
 
 /// <summary>

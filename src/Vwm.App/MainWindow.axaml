@@ -66,6 +66,24 @@
                       IsChecked="{Binding KeepOriginalAudio}" />
           </Grid>
 
+          <Grid ColumnDefinitions="Auto,150,20,Auto,120,20,Auto,110">
+            <TextBlock Grid.Column="0" Classes="hint" Text="Subtitles" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding SubtitleFonts}" SelectedItem="{Binding SelectedSubtitleFont}"
+                      HorizontalAlignment="Stretch" />
+            <TextBlock Grid.Column="3" Classes="hint" Text="Size" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox Grid.Column="4" ItemsSource="{Binding SubtitleSizes}" SelectedItem="{Binding SelectedSubtitleSize}"
+                      HorizontalAlignment="Stretch" />
+            <TextBlock Grid.Column="6" Classes="hint" Text="Position" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox Grid.Column="7" ItemsSource="{Binding SubtitlePositions}" SelectedItem="{Binding SelectedSubtitlePosition}"
+                      HorizontalAlignment="Stretch" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,180">
+            <TextBlock Grid.Column="0" Classes="hint" Text="Subtitle background" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding SubtitleBackgrounds}" SelectedItem="{Binding SelectedSubtitleBackground}"
+                      HorizontalAlignment="Stretch" />
+          </Grid>
+
           <StackPanel Spacing="6">
             <TextBlock Classes="hint" Text="Output" />
             <Grid ColumnDefinitions="*,Auto">

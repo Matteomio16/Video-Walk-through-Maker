@@ -20,6 +20,10 @@ public sealed record PipelineOptions
     public IReadOnlyList<double>? Boundaries { get; init; }
     public double SceneThreshold { get; init; } = 0.005;
     public bool KeepOriginalAudio { get; init; }
+    public string SubtitleFont { get; init; } = "Arial";
+    public int SubtitleFontSize { get; init; } = 16;
+    public SubtitlePosition SubtitlePosition { get; init; } = SubtitlePosition.Bottom;
+    public SubtitleBackgroundStyle SubtitleBackground { get; init; } = SubtitleBackgroundStyle.Box;
     /// <summary>Directory for intermediate files. A temp directory is created (and kept for debugging) when null.</summary>
     public string? WorkDir { get; init; }
     public PlannerOptions Planner { get; init; } = new();
@@ -93,6 +97,10 @@ public static class WalkthroughPipeline
         {
             KeepOriginalAudio = options.KeepOriginalAudio,
             Fps = options.Planner.Fps,
+            SubtitleFont = options.SubtitleFont,
+            SubtitleFontSize = options.SubtitleFontSize,
+            SubtitlePosition = options.SubtitlePosition,
+            SubtitleBackground = options.SubtitleBackground,
         });
         await renderer.RenderAsync(options.VideoPath, plan, narrationWav, srtFileName, options.OutputPath, progress, ct);
 

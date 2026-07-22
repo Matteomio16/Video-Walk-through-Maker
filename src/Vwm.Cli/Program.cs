@@ -38,6 +38,8 @@ static int Usage()
                    [--engine espeak|piper|windows] [--voice <piper voice id or windows voice name>]
                    [--piper-model <voice.onnx>] [--boundaries <boundaries.json>]
                    [--threshold 0.005] [--keep-original-audio] [--work-dir <dir>]
+                   [--sub-font Arial] [--sub-size 16] [--sub-position bottom|middle|top]
+                   [--sub-background box|shadow]
 
           vwm voices
                    List the bundled Piper voice ids.
@@ -48,6 +50,21 @@ static int Usage()
         """);
     return 2;
 }
+
+static Vwm.Core.Render.SubtitlePosition ParseSubtitlePosition(string s) => s.ToLowerInvariant() switch
+{
+    "bottom" => Vwm.Core.Render.SubtitlePosition.Bottom,
+    "middle" => Vwm.Core.Render.SubtitlePosition.Middle,
+    "top" => Vwm.Core.Render.SubtitlePosition.Top,
+    var p => throw new ArgumentException($"Unknown --sub-position '{p}'. Use bottom, middle or top."),
+};
+
+static Vwm.Core.Render.SubtitleBackgroundStyle ParseSubtitleBackground(string s) => s.ToLowerInvariant() switch
+{
+    "box" => Vwm.Core.Render.SubtitleBackgroundStyle.Box,
+    "shadow" => Vwm.Core.Render.SubtitleBackgroundStyle.Shadow,
+    var p => throw new ArgumentException($"Unknown --sub-background '{p}'. Use box or shadow."),
+};
 
 static ITtsEngine CreateEngine(Args opts) => opts.Get("engine", "piper") switch
 {
@@ -105,6 +122,10 @@ static async Task<int> MakeAsync(Args opts)
             Boundaries = boundaries,
             SceneThreshold = opts.GetDouble("threshold", 0.005),
             KeepOriginalAudio = opts.Has("keep-original-audio"),
+            SubtitleFont = opts.Get("sub-font", "Arial"),
+            SubtitleFontSize = (int)opts.GetDouble("sub-size", 16),
+            SubtitlePosition = ParseSubtitlePosition(opts.Get("sub-position", "bottom")),
+            SubtitleBackground = ParseSubtitleBackground(opts.Get("sub-background", "box")),
             WorkDir = opts.GetOrNull("work-dir"),
         },
         progress: new Progress<string>(s => Console.WriteLine($"[vwm] {s}")));

@@ -23,6 +23,8 @@ the app right away. No Python, no internet connection needed — ever.
 1. **Choose files** — pick (or drag in) the recording and paste or load the script.
    Number your script steps (`1.`, `2.` or `Step 1:`) or separate them with blank lines.
    Pick a voice — two bundled neural voices (Heather and Ryan), plus the Windows voice.
+   Optionally set the subtitle font, size, position (top, middle or bottom) and
+   background (a grey box behind the text, or just a drop shadow).
 2. **Review** — the app proposes where each step starts in the video. Check the step
    texts, listen to each step's voice, and watch a video+voice preview of any step right
    inside the app. Nudge the boundary sliders if a guess is off.
@@ -99,7 +101,9 @@ CLI, useful for scripting and debugging:
 ```bash
 vwm make --video in.mp4 --script script.txt --out out.mp4 \
       [--engine piper|espeak|windows] [--voice <voice id>] \
-      [--boundaries b.json] [--keep-original-audio]
+      [--boundaries b.json] [--keep-original-audio] \
+      [--sub-font Arial] [--sub-size 16] [--sub-position bottom|middle|top] \
+      [--sub-background box|shadow]
 vwm detect --video in.mp4 --steps 4      # print proposed step boundaries as JSON
 vwm voices                               # list the bundled Piper voice ids
 ```

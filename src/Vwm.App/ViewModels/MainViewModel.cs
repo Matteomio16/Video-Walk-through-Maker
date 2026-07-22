@@ -39,6 +39,21 @@ public sealed record VoiceChoice(string Id, string DisplayName, Func<ITtsEngine>
     public override string ToString() => DisplayName;
 }
 
+public sealed record SubtitleSizeChoice(string DisplayName, int Size)
+{
+    public override string ToString() => DisplayName;
+}
+
+public sealed record SubtitlePositionChoice(string DisplayName, SubtitlePosition Position)
+{
+    public override string ToString() => DisplayName;
+}
+
+public sealed record SubtitleBackgroundChoice(string DisplayName, SubtitleBackgroundStyle Style)
+{
+    public override string ToString() => DisplayName;
+}
+
 public partial class MainViewModel : ObservableObject
 {
     // --- navigation -----------------------------------------------------------
@@ -66,6 +81,30 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<VoiceChoice> Voices { get; } = [];
     [ObservableProperty] private VoiceChoice? _selectedVoice;
 
+    // Subtitle styling: a short curated set of choices, not a full font/size picker.
+    public IReadOnlyList<string> SubtitleFonts { get; } =
+        ["Arial", "Verdana", "Tahoma", "Georgia", "Segoe UI"];
+    [ObservableProperty] private string _selectedSubtitleFont = "Arial";
+
+    public IReadOnlyList<SubtitleSizeChoice> SubtitleSizes { get; } =
+        [new("Small", 14), new("Medium", 16), new("Large", 20), new("Extra large", 24)];
+    [ObservableProperty] private SubtitleSizeChoice? _selectedSubtitleSize;
+
+    public IReadOnlyList<SubtitlePositionChoice> SubtitlePositions { get; } =
+    [
+        new("Bottom", SubtitlePosition.Bottom),
+        new("Middle", SubtitlePosition.Middle),
+        new("Top", SubtitlePosition.Top),
+    ];
+    [ObservableProperty] private SubtitlePositionChoice? _selectedSubtitlePosition;
+
+    public IReadOnlyList<SubtitleBackgroundChoice> SubtitleBackgrounds { get; } =
+    [
+        new("Box", SubtitleBackgroundStyle.Box),
+        new("Drop shadow", SubtitleBackgroundStyle.Shadow),
+    ];
+    [ObservableProperty] private SubtitleBackgroundChoice? _selectedSubtitleBackground;
+
     // --- review page ----------------------------------------------------------
     public ObservableCollection<StepItem> Steps { get; } = [];
     public ObservableCollection<BoundaryItem> Boundaries { get; } = [];
@@ -85,6 +124,9 @@ public partial class MainViewModel : ObservableObject
         foreach (var voice in AvailableVoices())
             Voices.Add(voice);
         SelectedVoice = Voices.FirstOrDefault();
+        SelectedSubtitleSize = SubtitleSizes[1];       // Medium
+        SelectedSubtitlePosition = SubtitlePositions[0]; // Bottom
+        SelectedSubtitleBackground = SubtitleBackgrounds[0]; // Box
     }
 
     private static IEnumerable<VoiceChoice> AvailableVoices()
@@ -349,6 +391,10 @@ public partial class MainViewModel : ObservableObject
                     TtsEngine = CreateEngine(),
                     Boundaries = boundaries,
                     KeepOriginalAudio = KeepOriginalAudio,
+                    SubtitleFont = SelectedSubtitleFont,
+                    SubtitleFontSize = SelectedSubtitleSize?.Size ?? 16,
+                    SubtitlePosition = SelectedSubtitlePosition?.Position ?? SubtitlePosition.Bottom,
+                    SubtitleBackground = SelectedSubtitleBackground?.Style ?? SubtitleBackgroundStyle.Box,
                     WorkDir = Path.Combine(_workDir, "render"),
                 },
                 progress: new Progress<string>(Log.Add));
