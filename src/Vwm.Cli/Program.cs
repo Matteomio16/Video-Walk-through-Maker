@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Vwm.Core;
+using Vwm.Core.Project;
 using Vwm.Core.Script;
 using Vwm.Core.Timeline;
 using Vwm.Core.Tools;
@@ -41,6 +42,10 @@ static int Usage()
                    [--threshold 0.005] [--keep-original-audio] [--work-dir <dir>]
                    [--keep-diagnostics] [--sub-font Arial] [--sub-size 16]
                    [--sub-position bottom|middle|top] [--sub-background box|shadow]
+
+          vwm make --project <walkthrough.vwmproj> --out <out.mp4>
+                   [--work-dir <dir>] [--keep-diagnostics]
+                   Renders a saved editable project (per-cue voice, gain, timing, style).
 
           vwm voices
                    List the bundled Piper voice ids.
@@ -103,8 +108,34 @@ static int ListVoices()
     return 0;
 }
 
+static ITtsEngine ResolveVoice(string voiceId)
+{
+    if (voiceId == "espeak")
+        return new EspeakTtsEngine();
+#if WINDOWS10_0_19041_0_OR_GREATER
+    if (voiceId == "windows")
+        return new Vwm.Tts.Windows.WindowsTtsEngine(null);
+#endif
+    var voice = PiperVoiceCatalog.FindById(voiceId)
+        ?? throw new ArgumentException($"Unknown voice '{voiceId}'. Run 'vwm voices' to list the bundled voices.");
+    return new PiperTtsEngine(voice);
+}
+
 static async Task<int> MakeAsync(Args opts)
 {
+    if (opts.GetOrNull("project") is string projectPath)
+    {
+        var project = ProjectStore.Load(projectPath);
+        var projectResult = await WalkthroughPipeline.RunProjectAsync(
+            project, ResolveVoice, opts.Require("out"),
+            workDir: opts.GetOrNull("work-dir"),
+            keepIntermediates: opts.Has("keep-diagnostics") || opts.GetOrNull("work-dir") is not null,
+            progress: new Progress<string>(s => Console.WriteLine($"[vwm] {s}")));
+        Console.WriteLine($"[vwm] cues: {projectResult.Steps.Count}");
+        Console.WriteLine($"[vwm] wrote {projectResult.OutputPath} and {projectResult.SrtPath}");
+        return 0;
+    }
+
     var video = opts.Require("video");
     var script = await File.ReadAllTextAsync(opts.Require("script"));
     var output = opts.Require("out");

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Vwm.Core.Audio;
+using Vwm.Core.Project;
 using Vwm.Core.Render;
 using Vwm.Core.Script;
 using Vwm.Core.Subtitles;
@@ -143,6 +144,77 @@ public static class WalkthroughPipeline
 
         progress?.Report("Done");
         return new PipelineResult(outputPath, sidecarSrt, steps, boundaries, plan);
+    }
+
+    /// <summary>
+    /// Renders from an editable project: cached per-cue synthesis → cue-driven plan → render.
+    /// <paramref name="engineForVoice"/> maps a voice id to an engine (so Core stays free of the
+    /// GUI/CLI engine wiring). Intermediates (synth + segment caches) are kept when
+    /// <paramref name="keepIntermediates"/> is set, which the editor does for a persistent
+    /// project workspace so re-renders reuse unchanged work.
+    /// </summary>
+    public static async Task<PipelineResult> RunProjectAsync(
+        WalkthroughProject project,
+        Func<string, ITtsEngine> engineForVoice,
+        string outputPath,
+        string? workDir = null,
+        bool keepIntermediates = false,
+        IProgress<string>? progress = null,
+        CancellationToken ct = default)
+    {
+        var videoPath = LocalPath.RequireInputFile(project.VideoPath, "Input video");
+        var output = LocalPath.RequireOutputFile(outputPath, "Output video");
+        if (string.Equals(videoPath, output, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Output path must differ from the input video.");
+        if (project.Cues.Count == 0)
+            throw new InvalidOperationException("The project has no cues.");
+        if (!FontNamePattern.IsMatch(project.GlobalSubtitle.Font))
+            throw new ArgumentException($"Subtitle font contains unsupported characters: '{project.GlobalSubtitle.Font}'.");
+        if (project.GlobalSubtitle.Size is < 6 or > 200)
+            throw new ArgumentException($"Subtitle font size {project.GlobalSubtitle.Size} is out of range (6-200).");
+
+        var wd = workDir ?? Path.Combine(Path.GetTempPath(), "vwm", Path.GetRandomFileName());
+        Directory.CreateDirectory(wd);
+        try
+        {
+            RequireFreeSpace(wd, Math.Max(new FileInfo(videoPath).Length * 4, 200L * 1024 * 1024));
+
+            var cues = await new CueSynthesizer(engineForVoice, wd).SynthesizeAsync(project, progress, ct);
+
+            progress?.Report("Planning timeline");
+            var plan = TimelinePlanner.Plan(project.VideoDuration, cues, new PlannerOptions().Fps);
+
+            var narrationWav = Path.Combine(wd, "narration.wav");
+            WavAssembler.Assemble(
+                plan.Narration.Select(n => (n.WavPath, n.OutputStart, n.GainDb)).ToList(),
+                plan.TotalDuration, narrationWav);
+
+            var srt = SrtBuilder.Build(plan.Cues);
+            var renderer = new Renderer(wd, new RenderOptions
+            {
+                KeepOriginalAudio = project.KeepOriginalAudio,
+                SubtitleFont = project.GlobalSubtitle.Font,
+                SubtitleFontSize = project.GlobalSubtitle.Size,
+                SubtitlePosition = project.GlobalSubtitle.Position,
+                SubtitleBackground = project.GlobalSubtitle.Background,
+            });
+            await renderer.RenderAsync(videoPath, plan, narrationWav, output, progress, ct);
+
+            var sidecar = Path.ChangeExtension(output, ".srt");
+            await File.WriteAllTextAsync(sidecar, srt, ct);
+
+            progress?.Report("Done");
+            var steps = project.Cues
+                .Select((c, i) => new ScriptStep(i, c.Text, ScriptParser.SplitSentences(c.Text)))
+                .ToList();
+            var boundaries = project.Cues.Skip(1).Select(c => c.SourceStart).ToList();
+            return new PipelineResult(output, sidecar, steps, boundaries, plan);
+        }
+        finally
+        {
+            if (!keepIntermediates)
+                TryDeleteDir(wd);
+        }
     }
 
     private static void RequireFreeSpace(string dir, long bytesNeeded)

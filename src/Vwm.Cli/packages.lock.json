@@ -2,11 +2,24 @@
   "version": 1,
   "dependencies": {
     "net8.0": {
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.29, )",
+        "resolved": "8.0.29",
+        "contentHash": "HSBTfrkIZijz8z3ybLRKB7E8rHk4QQufFwpHa9fc5CMIgRhRzdn4mBGmlyXZqaueiMPtuJcnjresGvSTfaW8Mg=="
+      },
       "vwm.core": {
         "type": "Project"
       }
     },
+    "net8.0/win-x64": {},
     "net8.0-windows10.0.19041": {
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.29, )",
+        "resolved": "8.0.29",
+        "contentHash": "HSBTfrkIZijz8z3ybLRKB7E8rHk4QQufFwpHa9fc5CMIgRhRzdn4mBGmlyXZqaueiMPtuJcnjresGvSTfaW8Mg=="
+      },
       "vwm.core": {
         "type": "Project"
       },
@@ -16,6 +29,7 @@
           "Vwm.Core": "[1.0.0, )"
         }
       }
-    }
+    },
+    "net8.0-windows10.0.19041/win-x64": {}
   }
 }

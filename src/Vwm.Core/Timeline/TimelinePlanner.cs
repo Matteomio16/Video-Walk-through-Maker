@@ -27,7 +27,7 @@ public sealed record SegmentPlan(
     public double SourceDuration => SourceEnd - SourceStart;
 }
 
-public sealed record NarrationPlacement(string WavPath, double OutputStart);
+public sealed record NarrationPlacement(string WavPath, double OutputStart, double GainDb = 0);
 
 /// <summary>A cue to place on the timeline: its source-video slice, its synthesized
 /// sentence clips, and its own timing knobs (per-cue, so the editor can tune one cue
@@ -38,7 +38,8 @@ public sealed record CueNarration(
     IReadOnlyList<(string SentenceText, TtsClip Clip)> Sentences,
     double LeadInSeconds,
     double TailSeconds,
-    double SentenceGapSeconds);
+    double SentenceGapSeconds,
+    double GainDb = 0);
 
 /// <summary>A subtitle cue, in final-output time.</summary>
 public sealed record SentenceCue(string Text, double Start, double Duration);
@@ -133,7 +134,7 @@ public static class TimelinePlanner
             var t = cursor + cue.LeadInSeconds;
             foreach (var (text, clip) in sentences)
             {
-                narration.Add(new NarrationPlacement(clip.WavPath, t));
+                narration.Add(new NarrationPlacement(clip.WavPath, t, cue.GainDb));
                 subtitleCues.Add(new SentenceCue(text, t, clip.DurationSeconds));
                 t += clip.DurationSeconds + cue.SentenceGapSeconds;
             }
