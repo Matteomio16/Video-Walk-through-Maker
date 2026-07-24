@@ -12,9 +12,14 @@
 
     <!-- ============================== header + stepper ============================== -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,18">
-      <StackPanel Grid.Column="0" Spacing="2">
-        <TextBlock Classes="h1" Text="Video Walk-through Maker" />
-        <TextBlock Classes="faint" Text="Narrated walkthrough videos — everything stays on this computer" />
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14">
+        <Border Classes="logo" VerticalAlignment="Center">
+          <TextBlock Text="&#9658;" />
+        </Border>
+        <StackPanel Spacing="2" VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Video Walk-through Maker" />
+          <TextBlock Classes="faint" Text="Narrated walkthrough videos — everything stays on this computer" />
+        </StackPanel>
       </StackPanel>
 
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -31,9 +36,9 @@
 
     <!-- ============================== 1. INPUT ============================== -->
     <ScrollViewer Grid.Row="1" IsVisible="{Binding IsInputPage}" VerticalScrollBarVisibility="Auto">
-      <Border Classes="card" MaxWidth="800" Padding="30,26" VerticalAlignment="Top"
+      <Border Classes="card" MaxWidth="800" Padding="34,30" VerticalAlignment="Top"
               HorizontalAlignment="Center">
-        <StackPanel Spacing="14">
+        <StackPanel Spacing="16">
           <StackPanel Spacing="3">
             <TextBlock Classes="h2" Text="Choose your recording and script" />
             <TextBlock Classes="hint" Text="Drop files anywhere in this window, or browse. Number your script steps (1., 2., …) or separate them with blank lines." />
@@ -69,7 +74,13 @@
           <Grid ColumnDefinitions="Auto,150,20,Auto,120,20,Auto,110">
             <TextBlock Grid.Column="0" Classes="hint" Text="Subtitles" VerticalAlignment="Center" Margin="0,0,10,0" />
             <ComboBox Grid.Column="1" ItemsSource="{Binding SubtitleFonts}" SelectedItem="{Binding SelectedSubtitleFont}"
-                      HorizontalAlignment="Stretch" />
+                      HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" FontFamily="{Binding}" FontSize="14" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
             <TextBlock Grid.Column="3" Classes="hint" Text="Size" VerticalAlignment="Center" Margin="0,0,10,0" />
             <ComboBox Grid.Column="4" ItemsSource="{Binding SubtitleSizes}" SelectedItem="{Binding SelectedSubtitleSize}"
                       HorizontalAlignment="Stretch" />

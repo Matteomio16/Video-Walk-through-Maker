@@ -13,39 +13,52 @@
     <Color x:Key="SystemAccentColorLight1">#6366F1</Color>
     <Color x:Key="SystemAccentColorLight2">#818CF8</Color>
     <Color x:Key="SystemAccentColorLight3">#A5B4FC</Color>
-    <Color x:Key="AppBackgroundColor">#F2F4F8</Color>
-    <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F4F6FB" />
+    <LinearGradientBrush x:Key="AppBackgroundGradient" StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Offset="0" Color="#F8FAFE" />
+      <GradientStop Offset="1" Color="#EBEEF6" />
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="CardBorderBrush" Color="#E2E7F0" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#E8ECF4" />
     <SolidColorBrush x:Key="AccentBrush" Color="#4F46E5" />
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#4338CA" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#3730A3" />
-    <SolidColorBrush x:Key="AccentSoftBrush" Color="#E4E7FB" />
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1B2437" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5D6A85" />
-    <SolidColorBrush x:Key="TextFaintBrush" Color="#8B96AC" />
-    <SolidColorBrush x:Key="DangerBrush" Color="#D64545" />
-    <SolidColorBrush x:Key="SuccessBrush" Color="#1F9D55" />
-    <SolidColorBrush x:Key="PlayerBackgroundBrush" Color="#12151C" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#ECEDFC" />
+    <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+      <GradientStop Offset="0" Color="#6D68F0" />
+      <GradientStop Offset="1" Color="#4F46E5" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AccentGradientHoverBrush" StartPoint="0%,0%" EndPoint="100%,100%">
+      <GradientStop Offset="0" Color="#5A52E8" />
+      <GradientStop Offset="1" Color="#4338CA" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#141B2D" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#586178" />
+    <SolidColorBrush x:Key="TextFaintBrush" Color="#8A93A8" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#DC4B4B" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#18985A" />
+    <SolidColorBrush x:Key="PlayerBackgroundBrush" Color="#0F1218" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#D4DAE8" />
   </Application.Resources>
 
   <Application.Styles>
     <FluentTheme />
 
     <Style Selector="Window">
-      <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+      <Setter Property="Background" Value="{StaticResource AppBackgroundGradient}" />
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
       <Setter Property="FontSize" Value="13" />
     </Style>
 
     <!-- typography -->
     <Style Selector="TextBlock.h1">
-      <Setter Property="FontSize" Value="19" />
-      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="TextBlock.h2">
-      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontSize" Value="16" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
@@ -62,73 +75,125 @@
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <!-- brand logo mark -->
+    <Style Selector="Border.logo">
+      <Setter Property="Width" Value="42" />
+      <Setter Property="Height" Value="42" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+      <Setter Property="BoxShadow" Value="0 6 16 0 #404F46E5" />
+    </Style>
+    <Style Selector="Border.logo > TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <!-- cards -->
     <Style Selector="Border.card">
       <Setter Property="Background" Value="{StaticResource CardBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="BoxShadow" Value="0 1 4 0 #14324063" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="BoxShadow" Value="0 10 30 0 #14243B5C" />
     </Style>
 
-    <!-- buttons -->
+    <!-- buttons: smooth hover / press motion + color transitions -->
     <Style Selector="Button">
-      <Setter Property="CornerRadius" Value="7" />
-      <Setter Property="Padding" Value="14,7" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="15,8" />
+      <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.13" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
     </Style>
+    <Style Selector="Button /template/ ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="RenderTransform" Value="scale(0.97)" />
+    </Style>
+
     <Style Selector="Button.primary">
-      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
       <Setter Property="Foreground" Value="White" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Padding" Value="18,10" />
+      <Setter Property="Padding" Value="20,11" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="RenderTransform" Value="scale(1.03)" />
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentGradientHoverBrush}" />
       <Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Button.primary:pressed /template/ ContentPresenter">
       <Setter Property="Background" Value="{StaticResource AccentPressedBrush}" />
       <Setter Property="Foreground" Value="White" />
     </Style>
+
     <Style Selector="Button.secondary">
       <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="#C9D2E3" />
+      <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
     </Style>
     <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#F4F6FB" />
+      <Setter Property="Background" Value="#F1F4FA" />
+      <Setter Property="BorderBrush" Value="#B9C3D8" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover">
+      <Setter Property="RenderTransform" Value="scale(1.02)" />
     </Style>
     <Style Selector="Button.small">
-      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="Padding" Value="11,6" />
       <Setter Property="FontSize" Value="12" />
     </Style>
 
     <!-- inputs -->
     <Style Selector="TextBox">
-      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="#C9D2E3" />
+      <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="11,8" />
     </Style>
     <Style Selector="ComboBox">
-      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="#C9D2E3" />
+      <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="11,6" />
     </Style>
 
     <!-- wizard stepper -->
     <Style Selector="Border.stepDot">
-      <Setter Property="Width" Value="26" />
-      <Setter Property="Height" Value="26" />
-      <Setter Property="CornerRadius" Value="13" />
-      <Setter Property="Background" Value="#DDE3EE" />
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="CornerRadius" Value="15" />
+      <Setter Property="Background" Value="#E2E7F1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.25" />
+        </Transitions>
+      </Setter>
     </Style>
     <Style Selector="Border.stepDot.active">
-      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+      <Setter Property="BoxShadow" Value="0 4 12 0 #384F46E5" />
     </Style>
     <Style Selector="Border.stepDot > TextBlock">
-      <Setter Property="Foreground" Value="#5D6A85" />
+      <Setter Property="Foreground" Value="#6C778F" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontSize" Value="13" />
       <Setter Property="HorizontalAlignment" Value="Center" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -146,7 +211,9 @@
     </Style>
     <Style Selector="Rectangle.stepLine">
       <Setter Property="Height" Value="2" />
-      <Setter Property="Width" Value="34" />
+      <Setter Property="Width" Value="36" />
+      <Setter Property="RadiusX" Value="1" />
+      <Setter Property="RadiusY" Value="1" />
       <Setter Property="Fill" Value="#DDE3EE" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -154,8 +221,8 @@
     <!-- step number badge on review cards -->
     <Style Selector="Border.stepBadge">
       <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
-      <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="9,3" />
       <Setter Property="VerticalAlignment" Value="Top" />
     </Style>
     <Style Selector="Border.stepBadge > TextBlock">
