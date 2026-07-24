@@ -75,7 +75,7 @@ public static class PreviewBuilder
         await ProcessRunner.RunAsync(
             ToolLocator.FfmpegPath,
             [
-                "-hide_banner", "-y",
+                "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
                 "-ss", F(sourceStart), "-i", Path.GetFullPath(videoPath),
                 "-i", Path.GetFullPath(narrationWavPath),
                 "-filter_complex",

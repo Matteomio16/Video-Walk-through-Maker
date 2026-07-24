@@ -79,7 +79,7 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
 
             var args = new List<string>
             {
-                "-hide_banner", "-y",
+                "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
                 "-ss", F(seg.SourceStart),
                 "-i", videoPath,
                 "-vf", vf,
@@ -112,13 +112,13 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
         await File.WriteAllLinesAsync(listFile, segmentFiles.Select(f => $"file '{f}'"), ct);
         await ProcessRunner.RunAsync(
             ffmpeg,
-            ["-hide_banner", "-y", "-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "combined.mp4"],
+            ["-hide_banner", "-y", "-protocol_whitelist", "file,pipe", "-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "combined.mp4"],
             workingDirectory: workDir, ct: ct);
 
         progress?.Report("Adding voiceover and subtitles");
         var finalArgs = new List<string>
         {
-            "-hide_banner", "-y",
+            "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
             "-i", "combined.mp4",
             "-i", Path.GetFullPath(narrationWavPath),
             "-vf", $"subtitles={srtFileName}:force_style='{_opt.SubtitleStyle}'",

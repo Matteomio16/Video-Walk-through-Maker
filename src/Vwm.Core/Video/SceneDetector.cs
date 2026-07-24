@@ -25,7 +25,7 @@ public static partial class SceneDetector
         var stdout = await ProcessRunner.RunAsync(
             ToolLocator.FfmpegPath,
             [
-                "-hide_banner", "-i", videoPath,
+                "-hide_banner", "-protocol_whitelist", "file,pipe", "-i", videoPath,
                 "-vf", $"select='gt(scene,{threshold.ToString(CultureInfo.InvariantCulture)})',metadata=print:file=-",
                 "-an", "-f", "null", "-"
             ],
@@ -53,7 +53,7 @@ public static partial class SceneDetector
     {
         var stdout = await ProcessRunner.RunAsync(
             ToolLocator.FfprobePath,
-            ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", videoPath],
+            ["-v", "error", "-protocol_whitelist", "file,pipe", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", videoPath],
             ct: ct);
         return double.Parse(stdout.Trim(), CultureInfo.InvariantCulture);
     }

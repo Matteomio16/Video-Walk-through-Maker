@@ -114,6 +114,17 @@ foreach ($v in $voices) {
 
 Remove-Item $tmp -Recurse -Force
 
+# --- Sealed-tools manifest ---------------------------------------------------
+# The app runs "sealed" at runtime: it resolves only these bundled executables and
+# verifies each against the SHA-256 recorded here, refusing to run a substituted
+# ffmpeg/piper. Presence of this file is what switches the app out of dev (PATH) mode.
+Write-Host "==> Writing tools manifest (SHA-256 of bundled executables)"
+$manifest = [ordered]@{}
+Get-ChildItem $tools -Recurse -Filter *.exe | Sort-Object Name | ForEach-Object {
+  $manifest[$_.Name] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+}
+$manifest | ConvertTo-Json | Set-Content (Join-Path $tools "tools.manifest.json") -Encoding UTF8
+
 # --- Installer (preferred) or zip fallback -----------------------------------
 # winget installs Inno Setup 6.7+ per-user under %LOCALAPPDATA%\Programs by
 # default, not Program Files - so search there too or we'd silently fall back

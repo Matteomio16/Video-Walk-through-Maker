@@ -41,9 +41,19 @@ Tips
   process, or the Windows speech engine that ships with the OS), video processing
   (bundled ffmpeg) and in-app preview playback (bundled libvlc) all happen on the
   user's machine. The app contains no telemetry, no cloud calls, no API keys.
-  This is enforced, not just asserted: the `NoNetworkGuard` unit test fails the build
-  if the core engine (`Vwm.Core`) ever gains a reference to any `System.Net.*`
-  networking assembly, so a stray `HttpClient`/socket call cannot ship undetected.
+  This is enforced on two levels, not just asserted:
+  - The `NoNetworkGuard` unit test fails the build if the core engine (`Vwm.Core`)
+    ever gains a reference to any `System.Net.*` networking assembly, so a stray
+    `HttpClient`/socket call cannot ship undetected.
+  - The child processes are constrained too: every media path is required to be a
+    real local file (network URLs and UNC shares are rejected before ffmpeg/Piper
+    ever see them), and ffmpeg is invoked with `-protocol_whitelist file,pipe`, so
+    it cannot be steered into opening `http://`, `rtsp://`, `smb://`, etc.
+- **Sealed, tamper-checked tools.** In a packaged build the app resolves *only* the
+  executables bundled next to it and verifies each against a SHA-256 manifest
+  (`tools/tools.manifest.json`, generated at package time), refusing to run on any
+  mismatch or unlisted tool. It never falls back to a `ffmpeg`/`piper` found on `PATH`,
+  so a substituted binary on a corporate endpoint cannot execute through the product.
 - Bundled third-party binaries (all fetched at *package* time by `packaging/build-release.ps1`
   or NuGet): [ffmpeg](https://ffmpeg.org) (GPL build from gyan.dev),
   [Piper](https://github.com/rhasspy/piper) (MIT) with voice models from

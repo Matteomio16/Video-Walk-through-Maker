@@ -19,7 +19,7 @@ public static class ThumbnailExtractor
             await ProcessRunner.RunAsync(
                 ToolLocator.FfmpegPath,
                 [
-                    "-hide_banner", "-y",
+                    "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
                     "-ss", time.ToString("F3", CultureInfo.InvariantCulture),
                     "-i", videoPath,
                     "-frames:v", "1", "-vf", $"scale=-2:{height}", path

@@ -1,8 +1,10 @@
+using System.Text.RegularExpressions;
 using Vwm.Core.Audio;
 using Vwm.Core.Render;
 using Vwm.Core.Script;
 using Vwm.Core.Subtitles;
 using Vwm.Core.Timeline;
+using Vwm.Core.Tools;
 using Vwm.Core.Tts;
 using Vwm.Core.Video;
 
@@ -39,9 +41,22 @@ public sealed record PipelineResult(
 /// <summary>End-to-end orchestration: parse script → find boundaries → synthesize → plan → render.</summary>
 public static class WalkthroughPipeline
 {
+    // Subtitle font is interpolated into ffmpeg/libass force_style; keep it to a plain
+    // typeface name so it cannot smuggle in extra style directives.
+    private static readonly Regex FontNamePattern = new("^[A-Za-z0-9 ._-]{1,64}$", RegexOptions.Compiled);
+
     public static async Task<PipelineResult> RunAsync(
         PipelineOptions options, IProgress<string>? progress = null, CancellationToken ct = default)
     {
+        var videoPath = LocalPath.RequireInputFile(options.VideoPath, "Input video");
+        var outputPath = LocalPath.RequireOutputFile(options.OutputPath, "Output video");
+        if (string.Equals(videoPath, outputPath, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Output path must differ from the input video.");
+        if (!FontNamePattern.IsMatch(options.SubtitleFont))
+            throw new ArgumentException($"Subtitle font contains unsupported characters: '{options.SubtitleFont}'.");
+        if (options.SubtitleFontSize is < 6 or > 200)
+            throw new ArgumentException($"Subtitle font size {options.SubtitleFontSize} is out of range (6-200).");
+
         var workDir = options.WorkDir
             ?? Path.Combine(Path.GetTempPath(), "vwm", Path.GetRandomFileName());
         Directory.CreateDirectory(workDir);
@@ -52,10 +67,10 @@ public static class WalkthroughPipeline
             throw new InvalidOperationException("The script is empty — nothing to narrate.");
 
         progress?.Report("Analyzing video");
-        var duration = await SceneDetector.GetDurationAsync(options.VideoPath, ct);
+        var duration = await SceneDetector.GetDurationAsync(videoPath, ct);
         var boundaries = options.Boundaries
             ?? SceneDetector.ProposeBoundaries(
-                await SceneDetector.DetectAsync(options.VideoPath, options.SceneThreshold, ct),
+                await SceneDetector.DetectAsync(videoPath, options.SceneThreshold, ct),
                 duration, steps.Count,
                 NarrationEstimator.EstimateWeights(steps));
 
@@ -90,7 +105,7 @@ public static class WalkthroughPipeline
         const string srtFileName = "subtitles.srt";
         await File.WriteAllTextAsync(Path.Combine(workDir, srtFileName), srt, ct);
 
-        var sidecarSrt = Path.ChangeExtension(options.OutputPath, ".srt");
+        var sidecarSrt = Path.ChangeExtension(outputPath, ".srt");
         await File.WriteAllTextAsync(sidecarSrt, srt, ct);
 
         var renderer = new Renderer(workDir, new RenderOptions
@@ -102,9 +117,9 @@ public static class WalkthroughPipeline
             SubtitlePosition = options.SubtitlePosition,
             SubtitleBackground = options.SubtitleBackground,
         });
-        await renderer.RenderAsync(options.VideoPath, plan, narrationWav, srtFileName, options.OutputPath, progress, ct);
+        await renderer.RenderAsync(videoPath, plan, narrationWav, srtFileName, outputPath, progress, ct);
 
         progress?.Report("Done");
-        return new PipelineResult(options.OutputPath, sidecarSrt, steps, boundaries, plan);
+        return new PipelineResult(outputPath, sidecarSrt, steps, boundaries, plan);
     }
 }

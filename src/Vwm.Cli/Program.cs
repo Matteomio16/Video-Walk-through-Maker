@@ -3,6 +3,7 @@ using System.Text.Json;
 using Vwm.Core;
 using Vwm.Core.Script;
 using Vwm.Core.Timeline;
+using Vwm.Core.Tools;
 using Vwm.Core.Tts;
 using Vwm.Core.Video;
 
@@ -153,7 +154,7 @@ static async Task<int> MakeAsync(Args opts)
 
 static async Task<int> DetectAsync(Args opts)
 {
-    var video = opts.Require("video");
+    var video = LocalPath.RequireInputFile(opts.Require("video"), "Input video");
     IReadOnlyList<double>? weights = null;
     int steps;
     if (opts.GetOrNull("script") is string scriptFile)
