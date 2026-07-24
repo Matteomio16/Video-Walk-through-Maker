@@ -10,7 +10,15 @@
 
     powershell -ExecutionPolicy Bypass -File packaging\build-release.ps1 [-Version 1.2.3]
 #>
-param([string]$Version = "1.0.0")
+param(
+  [string]$Version = "1.0.0",
+  # Code signing (optional). Supply either a .pfx path (+ password) or the SHA-1
+  # thumbprint of a cert already in the machine/user store. When neither is given,
+  # signing is skipped and an unsigned build is produced (SmartScreen will warn).
+  [string]$SignPfx = "",
+  [string]$SignPassword = "",
+  [string]$SignThumbprint = ""
+)
 $ErrorActionPreference = "Stop"
 # Windows PowerShell 5.1 renders a per-byte progress bar for Invoke-WebRequest
 # that throttles downloads 10-50x and is invisible once the console scrolls -
@@ -58,6 +66,26 @@ $ffmpegSha = "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec"
 $piperUrl  = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
 $piperSha  = "f3c58906402b24f3a96d92145f58acba6d86c9b5db896d207f78dc80811efcea"
 
+# Signs a file with signtool when signing is configured; a no-op stub otherwise so
+# unsigned dev builds still work. Timestamps so signatures outlive the cert.
+function Sign-File($Path) {
+  if (-not $SignPfx -and -not $SignThumbprint) { return }
+  $signtool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+  if (-not $signtool) {
+    $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+      Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending |
+      Select-Object -First 1 -ExpandProperty FullName
+  }
+  if (-not $signtool) { throw "signing requested but signtool.exe not found (install the Windows SDK)" }
+  $sargs = @("sign", "/fd", "SHA256", "/tr", "http://timestamp.digicert.com", "/td", "SHA256")
+  if ($SignThumbprint) { $sargs += @("/sha1", $SignThumbprint) }
+  else { $sargs += @("/f", $SignPfx); if ($SignPassword) { $sargs += @("/p", $SignPassword) } }
+  $sargs += $Path
+  & $signtool @sargs
+  if ($LASTEXITCODE -ne 0) { throw "signtool failed for $Path" }
+  Write-Host "    signed $Path"
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root "dist"
 $app  = Join-Path $dist "VideoWalkthroughMaker"
@@ -74,6 +102,9 @@ if ($LASTEXITCODE -ne 0) { throw "app publish failed" }
 dotnet publish (Join-Path $root "src/Vwm.Cli") -c Release -f net8.0-windows10.0.19041.0 `
   -r win-x64 --self-contained -p:PublishSingleFile=true -o $app
 if ($LASTEXITCODE -ne 0) { throw "cli publish failed" }
+
+# Sign our own executables (not the third-party tools, which ship pre-signed upstream).
+Get-ChildItem $app -Filter *.exe | ForEach-Object { Sign-File $_.FullName }
 
 New-Item -ItemType Directory -Force -Path $tools, (Join-Path $tools "voices") | Out-Null
 $tmp = Join-Path $dist "downloads"
@@ -112,6 +143,31 @@ foreach ($v in $voices) {
   Get-File "$base/$($v.Id).onnx.json" (Join-Path $tools "voices/$($v.Id).onnx.json") $v.JsonSha
 }
 
+# --- Third-party license notices (GPL/LGPL compliance) -----------------------
+# Ship the verbatim upstream license texts (FFmpeg is a GPL build) plus our notices
+# and a CycloneDX SBOM of the managed dependencies. installer.iss ships everything
+# under $app, so these land in the installed folder for review.
+Write-Host "==> Collecting third-party license notices"
+$licenses = Join-Path $app "licenses"
+New-Item -ItemType Directory -Force -Path $licenses | Out-Null
+# LICENSE/COPYING files that ship inside the downloaded ffmpeg + piper archives.
+Get-ChildItem $tmp, (Join-Path $tools "piper") -Recurse -Include LICENSE, LICENSE.*, COPYING, COPYING.* -ErrorAction SilentlyContinue |
+  Group-Object Name | ForEach-Object {
+    $src = $_.Group[0]
+    $prefix = if ($src.FullName -match '\\piper\\') { "piper" } else { "ffmpeg" }
+    Copy-Item $src.FullName (Join-Path $licenses "$prefix-$($src.Name)") -Force
+  }
+Copy-Item (Join-Path $PSScriptRoot "THIRD-PARTY-NOTICES.md") $app -Force
+
+Write-Host "==> Generating SBOM (CycloneDX)"
+try {
+  dotnet tool restore | Out-Null
+  dotnet dotnet-CycloneDX (Join-Path $root "VideoWalkthroughMaker.sln") -o $app -fn sbom.xml -t
+  if ($LASTEXITCODE -ne 0) { throw "CycloneDX returned $LASTEXITCODE" }
+} catch {
+  Write-Warning "    SBOM generation failed ($($_.Exception.Message)); continuing without sbom.xml."
+}
+
 Remove-Item $tmp -Recurse -Force
 
 # --- Sealed-tools manifest ---------------------------------------------------
@@ -136,11 +192,14 @@ $iscc = @(${env:ProgramFiles(x86)}, $env:ProgramFiles, (Join-Path $env:LOCALAPPD
   Select-Object -First 1
 if (-not $iscc) { $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source }
 
+$artifact = $null
 if ($iscc) {
   Write-Host "==> Building installer (Inno Setup)"
   & $iscc /Qp "/DAppVersion=$Version" "/DDistDir=$app" (Join-Path $PSScriptRoot "installer.iss")
   if ($LASTEXITCODE -ne 0) { throw "installer build failed" }
-  Write-Host "==> Done: $(Join-Path $dist 'VideoWalkthroughMaker-Setup.exe')"
+  $artifact = Join-Path $dist "VideoWalkthroughMaker-Setup.exe"
+  Sign-File $artifact
+  Write-Host "==> Done: $artifact"
   Write-Host "    Hand users the setup exe - double-click, next, done. Installs per-user"
   Write-Host "    (no admin rights), adds a Start Menu shortcut, never shows a console."
 }
@@ -156,5 +215,27 @@ else {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   [System.IO.Compression.ZipFile]::CreateFromDirectory(
     $app, $zip, [System.IO.Compression.CompressionLevel]::Fastest, $false)
+  $artifact = $zip
   Write-Host "==> Done: $zip (users extract it and run VideoWalkthroughMaker.exe)"
+}
+
+# --- Release artifact manifest -----------------------------------------------
+# Records what shipped: version, artifact hash, whether it was signed, and the
+# bundled-tool hashes. Publish this next to the download so recipients can verify.
+if ($artifact -and (Test-Path $artifact)) {
+  $manifestObj = [ordered]@{
+    product   = "Video Walk-through Maker"
+    version   = $Version
+    built     = (Get-Date).ToUniversalTime().ToString("o")
+    signed    = [bool]($SignPfx -or $SignThumbprint)
+    artifact  = [ordered]@{
+      name   = Split-Path $artifact -Leaf
+      sha256 = (Get-FileHash $artifact -Algorithm SHA256).Hash.ToLower()
+      bytes  = (Get-Item $artifact).Length
+    }
+    tools     = (Get-Content (Join-Path $tools "tools.manifest.json") | ConvertFrom-Json)
+  }
+  $manifestOut = Join-Path $dist "VideoWalkthroughMaker-$Version.manifest.json"
+  $manifestObj | ConvertTo-Json -Depth 5 | Set-Content $manifestOut -Encoding UTF8
+  Write-Host "==> Wrote artifact manifest: $manifestOut"
 }

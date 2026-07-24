@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "vwm.core": {
+        "type": "Project"
+      }
+    },
+    "net8.0-windows10.0.19041": {
+      "vwm.core": {
+        "type": "Project"
+      },
+      "vwm.tts.windows": {
+        "type": "Project",
+        "dependencies": {
+          "Vwm.Core": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

@@ -5,5 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Lock the dependency graph: restore writes packages.lock.json and CI restores
+         in locked mode, so the exact transitive package set is pinned and auditable. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 </Project>
