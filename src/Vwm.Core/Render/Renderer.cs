@@ -1,6 +1,7 @@
 using System.Globalization;
 using Vwm.Core.Timeline;
 using Vwm.Core.Tools;
+using Vwm.Core.Video;
 
 namespace Vwm.Core.Render;
 
@@ -137,13 +138,30 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
         {
             finalArgs.AddRange(["-map", "0:v", "-map", "1:a"]);
         }
+        // Render to a staging file in the output's own directory, then atomically move it
+        // into place only after it validates. A failed or cancelled job can never leave a
+        // half-written file at (or destroy a prior) outputPath.
+        outputPath = Path.GetFullPath(outputPath);
+        var outDir = Path.GetDirectoryName(outputPath)!;
+        var staging = Path.Combine(outDir, $".{Path.GetFileNameWithoutExtension(outputPath)}.{Guid.NewGuid():N}{Path.GetExtension(outputPath)}");
         finalArgs.AddRange([
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
             "-c:a", "aac", "-b:a", "160k",
             "-t", F(plan.TotalDuration),
             "-movflags", "+faststart",
-            Path.GetFullPath(outputPath),
+            staging,
         ]);
-        await ProcessRunner.RunAsync(ffmpeg, finalArgs, workingDirectory: workDir, ct: ct);
+        try
+        {
+            await ProcessRunner.RunAsync(ffmpeg, finalArgs, workingDirectory: workDir, ct: ct);
+            if (!(await SceneDetector.GetDurationAsync(staging, ct) > 0))
+                throw new InvalidOperationException("Rendered file failed validation (zero duration).");
+            File.Move(staging, outputPath, overwrite: true);
+        }
+        catch
+        {
+            try { if (File.Exists(staging)) File.Delete(staging); } catch { /* best effort */ }
+            throw;
+        }
     }
 }

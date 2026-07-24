@@ -30,6 +30,14 @@ public static class ProcessRunner
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start '{exePath}'.");
 
+        // Cancelling a .NET await does not stop the child; kill the whole ffmpeg/Piper
+        // process tree so a cancelled or abandoned job stops consuming CPU and disk.
+        await using var reg = ct.Register(() =>
+        {
+            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); }
+            catch { /* already gone */ }
+        });
+
         if (stdin is not null)
         {
             await proc.StandardInput.WriteAsync(stdin);

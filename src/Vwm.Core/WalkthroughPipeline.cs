@@ -26,8 +26,11 @@ public sealed record PipelineOptions
     public int SubtitleFontSize { get; init; } = 16;
     public SubtitlePosition SubtitlePosition { get; init; } = SubtitlePosition.Bottom;
     public SubtitleBackgroundStyle SubtitleBackground { get; init; } = SubtitleBackgroundStyle.Box;
-    /// <summary>Directory for intermediate files. A temp directory is created (and kept for debugging) when null.</summary>
+    /// <summary>Directory for intermediate files. A temp directory is created when null.</summary>
     public string? WorkDir { get; init; }
+    /// <summary>Keep the intermediate work directory (raw speech, clips, combined video) after the
+    /// run. Off by default so sensitive recordings are not left on disk.</summary>
+    public bool KeepIntermediates { get; init; }
     public PlannerOptions Planner { get; init; } = new();
 }
 
@@ -60,6 +63,25 @@ public static class WalkthroughPipeline
         var workDir = options.WorkDir
             ?? Path.Combine(Path.GetTempPath(), "vwm", Path.GetRandomFileName());
         Directory.CreateDirectory(workDir);
+        try
+        {
+            return await RunCoreAsync(options, videoPath, outputPath, workDir, progress, ct);
+        }
+        finally
+        {
+            if (!options.KeepIntermediates)
+                TryDeleteDir(workDir);
+        }
+    }
+
+    private static async Task<PipelineResult> RunCoreAsync(
+        PipelineOptions options, string videoPath, string outputPath, string workDir,
+        IProgress<string>? progress, CancellationToken ct)
+    {
+        // Rough disk preflight: intermediates (re-encoded segments + combined video) plus the
+        // final output run a few times the source size. Fail early with a clear message rather
+        // than deep into rendering.
+        RequireFreeSpace(workDir, Math.Max(new FileInfo(videoPath).Length * 4, 200L * 1024 * 1024));
 
         progress?.Report("Parsing script");
         var steps = options.Steps ?? ScriptParser.Parse(options.ScriptText);
@@ -105,9 +127,6 @@ public static class WalkthroughPipeline
         const string srtFileName = "subtitles.srt";
         await File.WriteAllTextAsync(Path.Combine(workDir, srtFileName), srt, ct);
 
-        var sidecarSrt = Path.ChangeExtension(outputPath, ".srt");
-        await File.WriteAllTextAsync(sidecarSrt, srt, ct);
-
         var renderer = new Renderer(workDir, new RenderOptions
         {
             KeepOriginalAudio = options.KeepOriginalAudio,
@@ -119,7 +138,37 @@ public static class WalkthroughPipeline
         });
         await renderer.RenderAsync(videoPath, plan, narrationWav, srtFileName, outputPath, progress, ct);
 
+        // Write the sidecar only once the render has succeeded, so a failed job can never
+        // clobber a previous subtitle file next to the (untouched) previous output.
+        var sidecarSrt = Path.ChangeExtension(outputPath, ".srt");
+        await File.WriteAllTextAsync(sidecarSrt, srt, ct);
+
         progress?.Report("Done");
         return new PipelineResult(outputPath, sidecarSrt, steps, boundaries, plan);
+    }
+
+    private static void RequireFreeSpace(string dir, long bytesNeeded)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(dir));
+            if (string.IsNullOrEmpty(root))
+                return;
+            var free = new DriveInfo(root).AvailableFreeSpace;
+            if (free < bytesNeeded)
+                throw new IOException(
+                    $"Not enough free disk space to render: need about {bytesNeeded / (1024 * 1024)} MB, " +
+                    $"{free / (1024 * 1024)} MB available on {root}.");
+        }
+        catch (Exception ex) when (ex is not IOException)
+        {
+            // Drive not queryable (e.g. an unusual mount) — skip the preflight rather than block the run.
+        }
+    }
+
+    private static void TryDeleteDir(string dir)
+    {
+        try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+        catch { /* best effort: leftover temp files are cleaned by the OS eventually */ }
     }
 }

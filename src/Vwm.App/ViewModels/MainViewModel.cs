@@ -118,6 +118,7 @@ public partial class MainViewModel : ObservableObject
 
     private readonly string _workDir =
         Path.Combine(Path.GetTempPath(), "vwm-app", Path.GetRandomFileName());
+    private CancellationTokenSource? _generateCts;
 
     public MainViewModel()
     {
@@ -379,6 +380,7 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         IsDone = false;
         Log.Clear();
+        _generateCts = new CancellationTokenSource();
         try
         {
             var result = await WalkthroughPipeline.RunAsync(
@@ -397,9 +399,14 @@ public partial class MainViewModel : ObservableObject
                     SubtitleBackground = SelectedSubtitleBackground?.Style ?? SubtitleBackgroundStyle.Box,
                     WorkDir = Path.Combine(_workDir, "render"),
                 },
-                progress: new Progress<string>(Log.Add));
+                progress: new Progress<string>(Log.Add),
+                ct: _generateCts.Token);
             FinalOutputPath = result.OutputPath;
             IsDone = true;
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Add("Cancelled.");
         }
         catch (Exception ex)
         {
@@ -409,7 +416,20 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            _generateCts?.Dispose();
+            _generateCts = null;
         }
+    }
+
+    [RelayCommand]
+    private void CancelGenerate() => _generateCts?.Cancel();
+
+    /// <summary>Deletes the session's temp workspace (thumbnails, previews, render intermediates).
+    /// Called when the window closes so corporate recordings are not left under %TEMP%.</summary>
+    public void Cleanup()
+    {
+        try { if (Directory.Exists(_workDir)) Directory.Delete(_workDir, recursive: true); }
+        catch { /* best effort */ }
     }
 
     [RelayCommand]

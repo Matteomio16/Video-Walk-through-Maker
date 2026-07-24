@@ -28,7 +28,7 @@ public partial class MainWindow : Window
             };
         };
         ClipPlayer.Closed += (_, _) => Vm.IsClipPreviewOpen = false;
-        Closed += (_, _) => ClipPlayer.Shutdown();
+        Closed += (_, _) => { ClipPlayer.Shutdown(); Vm.Cleanup(); };
     }
 
     private void OnClipPreviewRequested(string clipPath, string title)
@@ -41,7 +41,7 @@ public partial class MainWindow : Window
 
     private async void OnDrop(object? sender, DragEventArgs e)
     {
-        foreach (var item in e.Data.GetFiles() ?? [])
+        foreach (var item in e.DataTransfer?.TryGetFiles() ?? [])
         {
             var path = item.TryGetLocalPath();
             if (path is null)

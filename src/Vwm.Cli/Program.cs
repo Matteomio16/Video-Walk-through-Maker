@@ -39,8 +39,8 @@ static int Usage()
                    [--engine espeak|piper|windows] [--voice <piper voice id or windows voice name>]
                    [--piper-model <voice.onnx>] [--boundaries <boundaries.json>]
                    [--threshold 0.005] [--keep-original-audio] [--work-dir <dir>]
-                   [--sub-font Arial] [--sub-size 16] [--sub-position bottom|middle|top]
-                   [--sub-background box|shadow]
+                   [--keep-diagnostics] [--sub-font Arial] [--sub-size 16]
+                   [--sub-position bottom|middle|top] [--sub-background box|shadow]
 
           vwm voices
                    List the bundled Piper voice ids.
@@ -128,6 +128,7 @@ static async Task<int> MakeAsync(Args opts)
             SubtitlePosition = ParseSubtitlePosition(opts.Get("sub-position", "bottom")),
             SubtitleBackground = ParseSubtitleBackground(opts.Get("sub-background", "box")),
             WorkDir = opts.GetOrNull("work-dir"),
+            KeepIntermediates = opts.Has("keep-diagnostics") || opts.GetOrNull("work-dir") is not null,
         },
         progress: new Progress<string>(s => Console.WriteLine($"[vwm] {s}")));
 

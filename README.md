@@ -72,6 +72,12 @@ Tips
   | `en_US-hfc_female-medium.onnx.json` | `03f1fa0622b80463283592d97aca9f6e89aec345a5c56b7257723e0093c58b6c` |
   | `en_US-ryan-high.onnx` | `b3990d7606e183ec8dbfba70a4607074f162de1a0c412e0180d1ff60bb154eca` |
   | `en_US-ryan-high.onnx.json` | `c6d3b98f08315cb4bebf0d49d50fc4ff491b503c64b940cd3d5ca28543b48011` |
+- **Ephemeral intermediates.** Raw synthesized speech, subtitle text and intermediate
+  clips live in a per-run temp workspace that is deleted when the job finishes (and the
+  app's workspace is deleted when the window closes), so corporate recordings are not
+  left on disk. Pass `--keep-diagnostics` (or `--work-dir`) to the CLI to retain them.
+  The final video is written to a staging file and only moved into place after it
+  validates, so a failed or cancelled render can never clobber a previous output.
 - If policy forbids the bundled binaries, users can select **"Windows built-in voice"**
   (100% Microsoft-shipped software); ffmpeg and libvlc remain as third-party components
   (previews fall back to the user's default video player if libvlc is removed).
