@@ -29,6 +29,17 @@ public sealed record SegmentPlan(
 
 public sealed record NarrationPlacement(string WavPath, double OutputStart);
 
+/// <summary>A cue to place on the timeline: its source-video slice, its synthesized
+/// sentence clips, and its own timing knobs (per-cue, so the editor can tune one cue
+/// without touching the rest).</summary>
+public sealed record CueNarration(
+    double SourceStart,
+    double SourceEnd,
+    IReadOnlyList<(string SentenceText, TtsClip Clip)> Sentences,
+    double LeadInSeconds,
+    double TailSeconds,
+    double SentenceGapSeconds);
+
 /// <summary>A subtitle cue, in final-output time.</summary>
 public sealed record SentenceCue(string Text, double Start, double Duration);
 
@@ -47,6 +58,9 @@ public sealed record TimelinePlan(
 /// </summary>
 public static class TimelinePlanner
 {
+    /// <summary>Boundary-driven planning: step source regions come from <paramref name="boundaries"/>
+    /// and every step shares the global timing in <paramref name="options"/>. A thin adapter over
+    /// the cue-driven core below.</summary>
     public static TimelinePlan Plan(
         double videoDuration,
         IReadOnlyList<double> boundaries,
@@ -64,25 +78,49 @@ public static class TimelinePlanner
             throw new ArgumentException("Boundaries must be strictly increasing and inside (0, videoDuration).");
         }
 
-        var segments = new List<SegmentPlan>();
-        var narration = new List<NarrationPlacement>();
-        var cues = new List<SentenceCue>();
-        var cursor = 0.0;
-        var frameSeconds = 1.0 / opt.Fps;
-
+        var cues = new List<CueNarration>(stepCount);
         for (var i = 0; i < stepCount; i++)
         {
             var sourceStart = i == 0 ? 0 : boundaries[i - 1];
             var sourceEnd = i == stepCount - 1 ? videoDuration : boundaries[i];
-            var sourceDuration = sourceEnd - sourceStart;
+            cues.Add(new CueNarration(
+                sourceStart, sourceEnd, stepNarrations[i],
+                opt.LeadInSeconds, opt.TailSeconds, opt.SentenceGapSeconds));
+        }
+        return Plan(videoDuration, cues, opt.Fps);
+    }
 
-            var sentences = stepNarrations[i];
+    /// <summary>Cue-driven planning: each cue carries its own source region and timing, so the
+    /// editor can place and tune cues independently. The freeze/quantize/placement math is the
+    /// same as the boundary path.</summary>
+    public static TimelinePlan Plan(double videoDuration, IReadOnlyList<CueNarration> cues, int fps = 30)
+    {
+        if (cues.Count == 0)
+            throw new ArgumentException("At least one cue is required.", nameof(cues));
+        foreach (var c in cues)
+        {
+            if (c.SourceStart < 0 || c.SourceEnd > videoDuration || c.SourceStart >= c.SourceEnd)
+                throw new ArgumentException(
+                    $"Cue source region [{c.SourceStart}, {c.SourceEnd}] must satisfy 0 <= start < end <= {videoDuration}.");
+        }
+
+        var segments = new List<SegmentPlan>();
+        var narration = new List<NarrationPlacement>();
+        var subtitleCues = new List<SentenceCue>();
+        var cursor = 0.0;
+        var frameSeconds = 1.0 / fps;
+
+        for (var i = 0; i < cues.Count; i++)
+        {
+            var cue = cues[i];
+            var sourceDuration = cue.SourceEnd - cue.SourceStart;
+            var sentences = cue.Sentences;
             var narrationDuration = sentences.Count == 0
                 ? 0
-                : opt.LeadInSeconds
+                : cue.LeadInSeconds
                   + sentences.Sum(s => s.Clip.DurationSeconds)
-                  + opt.SentenceGapSeconds * (sentences.Count - 1)
-                  + opt.TailSeconds;
+                  + cue.SentenceGapSeconds * (sentences.Count - 1)
+                  + cue.TailSeconds;
 
             // Round the segment length UP to a whole number of frames: the output timeline
             // is then an exact frame grid, so concatenated segment boundaries coincide with
@@ -92,18 +130,18 @@ public static class TimelinePlanner
             var outputDuration = Math.Ceiling(rawOutputDuration / frameSeconds - 1e-9) * frameSeconds;
             var hold = outputDuration - sourceDuration;
 
-            var t = cursor + opt.LeadInSeconds;
+            var t = cursor + cue.LeadInSeconds;
             foreach (var (text, clip) in sentences)
             {
                 narration.Add(new NarrationPlacement(clip.WavPath, t));
-                cues.Add(new SentenceCue(text, t, clip.DurationSeconds));
-                t += clip.DurationSeconds + opt.SentenceGapSeconds;
+                subtitleCues.Add(new SentenceCue(text, t, clip.DurationSeconds));
+                t += clip.DurationSeconds + cue.SentenceGapSeconds;
             }
 
-            segments.Add(new SegmentPlan(i, sourceStart, sourceEnd, hold, cursor, outputDuration));
+            segments.Add(new SegmentPlan(i, cue.SourceStart, cue.SourceEnd, hold, cursor, outputDuration));
             cursor += outputDuration;
         }
 
-        return new TimelinePlan(segments, narration, cues, cursor);
+        return new TimelinePlan(segments, narration, subtitleCues, cursor);
     }
 }
