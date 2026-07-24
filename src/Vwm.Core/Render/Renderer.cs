@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using Vwm.Core.Subtitles;
 using Vwm.Core.Timeline;
 using Vwm.Core.Tools;
 using Vwm.Core.Video;
@@ -41,10 +44,12 @@ public sealed record RenderOptions
 }
 
 /// <summary>
-/// Renders the final video in debuggable passes: cut + freeze-extend each segment,
-/// concat the segments, then mux the narration track and burn the subtitles.
-/// All intermediate files live in (and relative paths resolve against) the work dir,
-/// which sidesteps ffmpeg filter-path escaping across platforms.
+/// Renders the final video in debuggable passes: cut + freeze-extend each segment AND
+/// burn that segment's own subtitle in the same encode, then stream-copy the segments
+/// together and mux the narration (no full-video re-encode). Each segment is content-
+/// addressed (<c>seg_&lt;hash&gt;.mp4</c>), so an unchanged cue is never re-encoded across
+/// edits. All intermediate files live in (and relative paths resolve against) the work
+/// dir, which sidesteps ffmpeg filter-path escaping across platforms.
 /// </summary>
 public sealed class Renderer(string workDir, RenderOptions? options = null)
 {
@@ -55,7 +60,6 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
         string videoPath,
         TimelinePlan plan,
         string narrationWavPath,
-        string srtFileName,
         string outputPath,
         IProgress<string>? progress = null,
         CancellationToken ct = default)
@@ -68,8 +72,20 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
         foreach (var seg in plan.Segments)
         {
             progress?.Report($"Rendering segment {seg.StepIndex + 1}/{plan.Segments.Count}");
-            var segFile = $"seg_{seg.StepIndex:D3}.mp4";
+
+            // Cues that fall in this segment, shifted to segment-local time; burned into the
+            // segment so the subtitle travels with its frames (concat/mux stay copy-only).
+            var localCues = plan.Cues
+                .Where(c => c.Start >= seg.OutputStart - 1e-6 && c.Start < seg.OutputStart + seg.OutputDuration - 1e-6)
+                .Select(c => c with { Start = c.Start - seg.OutputStart })
+                .ToList();
+            var segSrt = localCues.Count > 0 ? SrtBuilder.Build(localCues) : "";
+
+            var hash = SegmentHash(seg, segSrt);
+            var segFile = $"seg_{hash}.mp4";
             segmentFiles.Add(segFile);
+            if (File.Exists(Path.Combine(workDir, segFile)))
+                continue; // cache hit: identical content already rendered
 
             // Over-provision the freeze by a few frames, then cut to an exact frame count so
             // the segment is deterministically OutputDuration long (matching the quantized plan).
@@ -77,6 +93,12 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
             var vf = $"trim=duration={F(seg.SourceDuration)},setpts=PTS-STARTPTS," +
                      $"tpad=stop_mode=clone:stop_duration={F(seg.HoldSeconds + 0.25)}," +
                      $"fps={_opt.Fps},format=yuv420p";
+            if (segSrt.Length > 0)
+            {
+                var srtFile = $"seg_{hash}.srt";
+                await File.WriteAllTextAsync(Path.Combine(workDir, srtFile), segSrt, ct);
+                vf += $",subtitles={srtFile}:force_style='{_opt.SubtitleStyle}'";
+            }
 
             var args = new List<string>
             {
@@ -116,22 +138,21 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
             ["-hide_banner", "-y", "-protocol_whitelist", "file,pipe", "-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "combined.mp4"],
             workingDirectory: workDir, ct: ct);
 
-        progress?.Report("Adding voiceover and subtitles");
+        progress?.Report("Adding voiceover");
+        // Subtitles are already in the segment frames, so the mux copies the video stream
+        // (-c:v copy) and only lays down (or mixes) the audio - no full-video re-encode.
         var finalArgs = new List<string>
         {
             "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
             "-i", "combined.mp4",
             "-i", Path.GetFullPath(narrationWavPath),
-            "-vf", $"subtitles={srtFileName}:force_style='{_opt.SubtitleStyle}'",
         };
         if (_opt.KeepOriginalAudio)
         {
-            finalArgs.RemoveRange(finalArgs.Count - 2, 2);
             finalArgs.AddRange([
                 "-filter_complex",
-                $"[0:v]subtitles={srtFileName}:force_style='{_opt.SubtitleStyle}'[v];" +
                 "[0:a]volume=0.125[bg];[1:a][bg]amix=inputs=2:duration=first:normalize=0[a]",
-                "-map", "[v]", "-map", "[a]",
+                "-map", "0:v", "-map", "[a]",
             ]);
         }
         else
@@ -145,9 +166,8 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
         var outDir = Path.GetDirectoryName(outputPath)!;
         var staging = Path.Combine(outDir, $".{Path.GetFileNameWithoutExtension(outputPath)}.{Guid.NewGuid():N}{Path.GetExtension(outputPath)}");
         finalArgs.AddRange([
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+            "-c:v", "copy",
             "-c:a", "aac", "-b:a", "160k",
-            "-t", F(plan.TotalDuration),
             "-movflags", "+faststart",
             staging,
         ]);
@@ -163,5 +183,15 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
             try { if (File.Exists(staging)) File.Delete(staging); } catch { /* best effort */ }
             throw;
         }
+    }
+
+    /// <summary>Content key for a segment's rendered file: everything that affects its pixels
+    /// or audio. Identical segments across edits reuse the cached encode.</summary>
+    private string SegmentHash(SegmentPlan seg, string segSrt)
+    {
+        var s = string.Join("|",
+            F(seg.SourceStart), F(seg.SourceEnd), F(seg.HoldSeconds), F(seg.OutputDuration),
+            _opt.Fps, _opt.KeepOriginalAudio, _opt.SubtitleStyle, segSrt);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s)))[..16].ToLowerInvariant();
     }
 }

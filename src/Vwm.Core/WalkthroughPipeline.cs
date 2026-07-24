@@ -124,8 +124,6 @@ public static class WalkthroughPipeline
             narrationWav);
 
         var srt = SrtBuilder.Build(plan.Cues);
-        const string srtFileName = "subtitles.srt";
-        await File.WriteAllTextAsync(Path.Combine(workDir, srtFileName), srt, ct);
 
         var renderer = new Renderer(workDir, new RenderOptions
         {
@@ -136,7 +134,7 @@ public static class WalkthroughPipeline
             SubtitlePosition = options.SubtitlePosition,
             SubtitleBackground = options.SubtitleBackground,
         });
-        await renderer.RenderAsync(videoPath, plan, narrationWav, srtFileName, outputPath, progress, ct);
+        await renderer.RenderAsync(videoPath, plan, narrationWav, outputPath, progress, ct);
 
         // Write the sidecar only once the render has succeeded, so a failed job can never
         // clobber a previous subtitle file next to the (untouched) previous output.
