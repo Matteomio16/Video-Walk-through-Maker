@@ -1,7 +1,7 @@
 # Design: per-cue voiceover & subtitle editor (milestone)
 
-Status: draft. Addresses audit blocker #3 ("does not yet provide actual voiceover/
-subtitle editing"). This is the design; nothing here is built yet.
+Status: in progress. Addresses audit blocker #3 ("does not yet provide actual
+voiceover/subtitle editing"). Phases B and A are built; C, D, E remain.
 
 ## Goal
 
@@ -127,13 +127,13 @@ Sits between Review and Generate (or replaces the Review boundary editor):
 
 ## Phased delivery
 
-| Phase | Scope | Est. |
-|---|---|---|
-| A | `WalkthroughProject`/`Cue` model, JSON save/load, `FromScript` seeder, planner consumes cues. Unit-tested, no UI. | 2-3 d |
-| B | Render refactor: per-segment subtitle burn + content-hash segment cache + incremental export + `-c copy` concat/mux. Tests + one real-media check. | 3-4 d |
-| C | Per-cue synth cache + edit operations (text/split/merge/timing/source/voice/gain/style) with invalidation; CLI `--project`. | 3-4 d |
-| D | GUI Edit page (timeline, cue list, inspector, preview, export). | 1.5-2 wk |
-| E | Polish: undo/redo, waveform rendering, keyboard nav. | 3-5 d |
+| Phase | Scope | Est. | Status |
+|---|---|---|---|
+| A | `WalkthroughProject`/`Cue` model, JSON save/load, `FromScript` seeder, planner consumes cues. Unit-tested, no UI. | 2-3 d | **done** |
+| B | Render refactor: per-segment subtitle burn + content-hash segment cache + incremental export + `-c copy` concat/mux. Tests + one real-media check. | 3-4 d | **done** |
+| C | Per-cue synth cache + edit operations (text/split/merge/timing/source/voice/gain/style) with invalidation; CLI `--project`. | 3-4 d | next |
+| D | GUI Edit page (timeline, cue list, inspector, preview, export). | 1.5-2 wk | todo |
+| E | Polish: undo/redo, waveform rendering, keyboard nav. | 3-5 d | todo |
 
 Roughly 4-5 weeks total. **A and B are valuable on their own** (cleaner model + faster
 render) and de-risk the rest, so they're the recommended first increment even if D is
