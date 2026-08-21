@@ -26,6 +26,9 @@ public sealed record RenderOptions
     public int SubtitleFontSize { get; init; } = 16;
     public SubtitlePosition SubtitlePosition { get; init; } = SubtitlePosition.Bottom;
     public SubtitleBackgroundStyle SubtitleBackground { get; init; } = SubtitleBackgroundStyle.Box;
+    /// <summary>Rectangles of the frame to obscure, each over its own slice of the recording
+    /// (in source-video time). Empty means no part of the video is touched.</summary>
+    public IReadOnlyList<BlurRegion> BlurRegions { get; init; } = [];
 
     /// <summary>ASS force_style string built from the chosen font, size, placement and backing.</summary>
     public string SubtitleStyle
@@ -81,7 +84,12 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
                 .ToList();
             var segSrt = localCues.Count > 0 ? SrtBuilder.Build(localCues) : "";
 
-            var hash = SegmentHash(seg, segSrt);
+            // Blur regions are given in source-video time; map them onto this segment's own
+            // output clock (which runs longer than the source slice when the video freezes).
+            var blurs = BlurFilterBuilder.ForSegment(
+                _opt.BlurRegions, seg.SourceStart, seg.SourceEnd, seg.OutputDuration);
+
+            var hash = SegmentHash(seg, segSrt, blurs);
             var segFile = $"seg_{hash}.mp4";
             segmentFiles.Add(segFile);
             if (File.Exists(Path.Combine(workDir, segFile)))
@@ -90,15 +98,19 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
             // Over-provision the freeze by a few frames, then cut to an exact frame count so
             // the segment is deterministically OutputDuration long (matching the quantized plan).
             var exactFrames = (int)Math.Round(seg.OutputDuration * _opt.Fps);
-            var vf = $"trim=duration={F(seg.SourceDuration)},setpts=PTS-STARTPTS," +
-                     $"tpad=stop_mode=clone:stop_duration={F(seg.HoldSeconds + 0.25)}," +
-                     $"fps={_opt.Fps},format=yuv420p";
+            var sourceChain = $"trim=duration={F(seg.SourceDuration)},setpts=PTS-STARTPTS," +
+                              $"tpad=stop_mode=clone:stop_duration={F(seg.HoldSeconds + 0.25)}," +
+                              $"fps={_opt.Fps},format=yuv420p";
+            string? subtitleFilter = null;
             if (segSrt.Length > 0)
             {
                 var srtFile = $"seg_{hash}.srt";
                 await File.WriteAllTextAsync(Path.Combine(workDir, srtFile), segSrt, ct);
-                vf += $",subtitles={srtFile}:force_style='{_opt.SubtitleStyle}'";
+                subtitleFilter = $"subtitles={srtFile}:force_style='{_opt.SubtitleStyle}'";
             }
+            // Blur first, subtitles last: the narration text sits on top of the redaction
+            // rather than under it.
+            var vf = BlurFilterBuilder.BuildGraph(sourceChain, blurs, subtitleFilter);
 
             var args = new List<string>
             {
@@ -187,11 +199,17 @@ public sealed class Renderer(string workDir, RenderOptions? options = null)
 
     /// <summary>Content key for a segment's rendered file: everything that affects its pixels
     /// or audio. Identical segments across edits reuse the cached encode.</summary>
-    private string SegmentHash(SegmentPlan seg, string segSrt)
+    private string SegmentHash(SegmentPlan seg, string segSrt, IReadOnlyList<AppliedBlur> blurs)
     {
+        // The blur is described by the rectangle, its style/strength and the window it is on
+        // for - exactly what changes the segment's pixels - so editing a region invalidates
+        // only the segments it actually covers.
+        var blurKey = string.Join(",", blurs.Select(b =>
+            $"{F(b.Region.X)};{F(b.Region.Y)};{F(b.Region.Width)};{F(b.Region.Height)};" +
+            $"{b.Region.Style};{b.Region.Strength};{F(b.LocalStart)};{F(b.LocalEnd)}"));
         var s = string.Join("|",
             F(seg.SourceStart), F(seg.SourceEnd), F(seg.HoldSeconds), F(seg.OutputDuration),
-            _opt.Fps, _opt.KeepOriginalAudio, _opt.SubtitleStyle, segSrt);
+            _opt.Fps, _opt.KeepOriginalAudio, _opt.SubtitleStyle, segSrt, blurKey);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s)))[..16].ToLowerInvariant();
     }
 }

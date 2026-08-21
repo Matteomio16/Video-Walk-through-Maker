@@ -33,6 +33,96 @@ public partial class BoundaryItem(int afterStep, double time, double max) : Obse
 
 public sealed record ThumbItem(Avalonia.Media.Imaging.Bitmap Image, string TimeLabel);
 
+public sealed record BlurStyleChoice(string DisplayName, BlurStyle Style)
+{
+    public override string ToString() => DisplayName;
+}
+
+public sealed record BlurStrengthChoice(string DisplayName, int Strength)
+{
+    public override string ToString() => DisplayName;
+}
+
+/// <summary>
+/// One area to hide, as the editor works with it: a slice of the recording ("a length")
+/// plus the rectangle covering the sensitive part of the frame. The rectangle is kept in
+/// fractions of the frame, exactly as <see cref="BlurRegion"/> stores it, so what the user
+/// drags on the preview still is what the renderer blurs at full size.
+/// </summary>
+public partial class BlurAreaItem : ObservableObject
+{
+    public string Id { get; } = Guid.NewGuid().ToString("N");
+    /// <summary>Length of the recording, so the time sliders know their range.</summary>
+    public double MaxSeconds { get; }
+
+    public BlurAreaItem(int number, double startSeconds, double endSeconds, double maxSeconds)
+    {
+        _number = number;
+        _startSeconds = startSeconds;
+        _endSeconds = endSeconds;
+        MaxSeconds = maxSeconds;
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Header))]
+    private int _number;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RangeLabel), nameof(StartLabel))]
+    private double _startSeconds;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RangeLabel), nameof(EndLabel))]
+    private double _endSeconds;
+
+    [ObservableProperty] private double _x = 0.34;
+    [ObservableProperty] private double _y = 0.40;
+    [ObservableProperty] private double _width = 0.32;
+    [ObservableProperty] private double _height = 0.16;
+
+    [ObservableProperty] private BlurStyleChoice _style = MainViewModel.BlurStyleChoices[0];
+    [ObservableProperty] private BlurStrengthChoice _strength = MainViewModel.BlurStrengthChoices[2];
+
+    public string Header => $"Area {Number}";
+    public string RangeLabel => $"{Stamp(StartSeconds)} → {Stamp(EndSeconds)}";
+    public string StartLabel => Stamp(StartSeconds);
+    public string EndLabel => Stamp(EndSeconds);
+
+    // Dragging one end past the other would make an empty (invalid) slice, so each end
+    // pushes the other along instead of crossing it.
+    partial void OnStartSecondsChanged(double value)
+    {
+        if (value > EndSeconds - MinSpanSeconds)
+            EndSeconds = Math.Min(MaxSeconds, value + MinSpanSeconds);
+    }
+
+    partial void OnEndSecondsChanged(double value)
+    {
+        if (value < StartSeconds + MinSpanSeconds)
+            StartSeconds = Math.Max(0, value - MinSpanSeconds);
+    }
+
+    /// <summary>Shortest slice the sliders will produce. Below a frame or two the area
+    /// would be there and gone again without ever hiding anything.</summary>
+    private const double MinSpanSeconds = 0.2;
+
+    public BlurRegion ToRegion() => new()
+    {
+        Id = Id,
+        StartSeconds = StartSeconds,
+        EndSeconds = EndSeconds,
+        X = X,
+        Y = Y,
+        Width = Width,
+        Height = Height,
+        Style = Style.Style,
+        Strength = Strength.Strength,
+    };
+
+    private static string Stamp(double seconds) =>
+        TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(@"mm\:ss\.f");
+}
+
 /// <summary>One entry in the voice dropdown: a specific Piper voice, the Windows voice, or eSpeak.</summary>
 public sealed record VoiceChoice(string Id, string DisplayName, Func<ITtsEngine> CreateEngine)
 {
@@ -110,6 +200,69 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<BoundaryItem> Boundaries { get; } = [];
     public ObservableCollection<ThumbItem> Thumbnails { get; } = [];
     private double _videoDuration;
+
+    // --- blur / redaction -----------------------------------------------------
+    public static IReadOnlyList<BlurStyleChoice> BlurStyleChoices { get; } =
+    [
+        new("Blur", BlurStyle.Blur),
+        new("Solid grey block", BlurStyle.Solid),
+    ];
+
+    public static IReadOnlyList<BlurStrengthChoice> BlurStrengthChoices { get; } =
+    [
+        new("Light", 4),
+        new("Medium", 7),
+        new("Strong", BlurRegion.DefaultStrength),
+    ];
+
+    public IReadOnlyList<BlurStyleChoice> BlurStyles => BlurStyleChoices;
+    public IReadOnlyList<BlurStrengthChoice> BlurStrengths => BlurStrengthChoices;
+
+    /// <summary>The feature is opt-in: unchecked, not one frame of the recording is touched.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BlurSummary))]
+    private bool _blurEnabled;
+
+    public ObservableCollection<BlurAreaItem> BlurAreas { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedBlurArea))]
+    private BlurAreaItem? _selectedBlurArea;
+
+    public bool HasSelectedBlurArea => SelectedBlurArea is not null;
+
+    [ObservableProperty] private bool _isBlurEditorOpen;
+    [ObservableProperty] private Avalonia.Media.Imaging.Bitmap? _blurFrame;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BlurPreviewLabel))]
+    private double _blurPreviewSeconds;
+    [ObservableProperty] private double _blurPreviewMin;
+    [ObservableProperty] private double _blurPreviewMax = 1;
+
+    /// <summary>True while the canvas shows the frame actually run through the blur filters
+    /// rather than the placement box, so the user can confirm what will be rendered.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPlacementBox), nameof(BlurPreviewButtonText))]
+    private bool _isShowingBlurredPreview;
+
+    public bool ShowPlacementBox => !IsShowingBlurredPreview;
+    public string BlurPreviewLabel =>
+        TimeSpan.FromSeconds(Math.Max(0, BlurPreviewSeconds)).ToString(@"mm\:ss\.f");
+    public string BlurPreviewButtonText =>
+        IsShowingBlurredPreview ? "Back to editing" : "Show the real blur";
+
+    public string BlurSummary => !BlurEnabled
+        ? "Off — the recording is rendered exactly as captured."
+        : BlurAreas.Count switch
+        {
+            0 => "No areas yet — add one to hide something.",
+            1 => "1 area will be hidden.",
+            var n => $"{n} areas will be hidden.",
+        };
+
+    public string BlurButtonText => BlurAreas.Count == 0
+        ? "Blur areas…"
+        : $"Blur areas ({BlurAreas.Count})…";
 
     // --- generate page --------------------------------------------------------
     public ObservableCollection<string> Log { get; } = [];
@@ -213,6 +366,14 @@ public partial class MainViewModel : ObservableObject
                     TimeSpan.FromSeconds(time).ToString(@"mm\:ss")));
             }
 
+            // Areas are anchored to this recording's timeline, so a fresh analysis (possibly
+            // of a different file) starts from a clean slate rather than stale ranges.
+            SelectedBlurArea = null;
+            BlurAreas.Clear();
+            BlurEnabled = false;
+            BlurFrame = null;
+            NotifyBlurAreasChanged();
+
             PageIndex = 1;
         }
         catch (Exception ex)
@@ -230,6 +391,7 @@ public partial class MainViewModel : ObservableObject
     {
         StopPlayback();
         IsClipPreviewOpen = false;
+        IsBlurEditorOpen = false;
         PageIndex = 0;
     }
 
@@ -345,7 +507,8 @@ public partial class MainViewModel : ObservableObject
 
             var previewDir = Path.Combine(_workDir, "preview");
             var wav = await PreviewBuilder.BuildVoicePreviewAsync(step.ToScriptStep(), CreateEngine(), previewDir);
-            var clip = await PreviewBuilder.BuildClipPreviewAsync(VideoPath, sourceStart, sourceEnd, wav, previewDir);
+            var clip = await PreviewBuilder.BuildClipPreviewAsync(
+                VideoPath, sourceStart, sourceEnd, wav, previewDir, CurrentBlurRegions());
             ClipPreviewRequested?.Invoke(clip, $"Preview — {step.Header}");
         }
         catch (Exception ex)
@@ -362,17 +525,183 @@ public partial class MainViewModel : ObservableObject
     public static void OpenInExternalPlayer(string path) =>
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
 
+    // --- blur editor ----------------------------------------------------------
+
+    /// <summary>Ticking the box opens the editor straight away: an enabled blur with no
+    /// areas hides nothing, so the next thing to do is always to place one.</summary>
+    partial void OnBlurEnabledChanged(bool value)
+    {
+        if (value)
+            OpenBlurEditorCommand.Execute(null);
+        else
+            IsBlurEditorOpen = false;
+    }
+
+    [RelayCommand]
+    private async Task OpenBlurEditorAsync()
+    {
+        StopPlayback();
+        IsClipPreviewOpen = false;
+        ErrorMessage = "";
+        BlurEnabled = true;
+        IsBlurEditorOpen = true;
+        IsShowingBlurredPreview = false;
+        if (BlurAreas.Count == 0)
+            AddBlurArea();
+        else
+            SelectedBlurArea ??= BlurAreas[0];
+        await ReloadBlurFrameAsync();
+    }
+
+    [RelayCommand]
+    private void CloseBlurEditor()
+    {
+        IsBlurEditorOpen = false;
+        IsShowingBlurredPreview = false;
+    }
+
+    /// <summary>Adds an area covering the whole recording, which the user then trims to the
+    /// stretch that actually shows the sensitive content.</summary>
+    [RelayCommand]
+    private void AddBlurArea()
+    {
+        var area = new BlurAreaItem(BlurAreas.Count + 1, 0, Math.Max(_videoDuration, 1), Math.Max(_videoDuration, 1));
+        BlurAreas.Add(area);
+        SelectedBlurArea = area;
+        NotifyBlurAreasChanged();
+    }
+
+    [RelayCommand]
+    private void RemoveBlurArea(BlurAreaItem area)
+    {
+        var index = BlurAreas.IndexOf(area);
+        if (index < 0)
+            return;
+        BlurAreas.RemoveAt(index);
+        for (var i = 0; i < BlurAreas.Count; i++)
+            BlurAreas[i].Number = i + 1;
+        SelectedBlurArea = BlurAreas.Count == 0
+            ? null
+            : BlurAreas[Math.Min(index, BlurAreas.Count - 1)];
+        NotifyBlurAreasChanged();
+    }
+
+    [RelayCommand]
+    private async Task ToggleBlurredPreviewAsync()
+    {
+        IsShowingBlurredPreview = !IsShowingBlurredPreview;
+        await ReloadBlurFrameAsync();
+    }
+
+    private void NotifyBlurAreasChanged()
+    {
+        OnPropertyChanged(nameof(BlurSummary));
+        OnPropertyChanged(nameof(BlurButtonText));
+    }
+
+    partial void OnSelectedBlurAreaChanged(BlurAreaItem? oldValue, BlurAreaItem? newValue)
+    {
+        if (oldValue is not null)
+            oldValue.PropertyChanged -= OnSelectedAreaPropertyChanged;
+        if (newValue is not null)
+            newValue.PropertyChanged += OnSelectedAreaPropertyChanged;
+
+        // The scrub slider walks the selected area's own slice, so the frame under the box
+        // is always one the blur will actually apply to.
+        BlurPreviewMin = newValue?.StartSeconds ?? 0;
+        BlurPreviewMax = Math.Max(newValue?.EndSeconds ?? 1, BlurPreviewMin + 0.1);
+        BlurPreviewSeconds = BlurPreviewMin;
+        _ = ReloadBlurFrameAsync();
+    }
+
+    private void OnSelectedAreaPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not BlurAreaItem area)
+            return;
+        if (e.PropertyName is nameof(BlurAreaItem.StartSeconds) or nameof(BlurAreaItem.EndSeconds))
+        {
+            BlurPreviewMin = area.StartSeconds;
+            BlurPreviewMax = Math.Max(area.EndSeconds, area.StartSeconds + 0.1);
+            BlurPreviewSeconds = Math.Clamp(BlurPreviewSeconds, BlurPreviewMin, BlurPreviewMax);
+        }
+        else if (IsShowingBlurredPreview)
+        {
+            // Geometry or strength changed while the real blur is on screen — re-render it.
+            _ = ReloadBlurFrameAsync();
+        }
+    }
+
+    partial void OnBlurPreviewSecondsChanged(double value) => _ = ReloadBlurFrameAsync();
+
+    private CancellationTokenSource? _blurFrameCts;
+
+    /// <summary>
+    /// Loads the still under the placement box — plain, or actually blurred when the user
+    /// asked to see the real thing. Dragging a slider fires this many times a second, so each
+    /// call cancels the one before it and waits out a short settle before touching ffmpeg.
+    /// </summary>
+    private async Task ReloadBlurFrameAsync()
+    {
+        if (!IsBlurEditorOpen || !File.Exists(VideoPath))
+            return;
+
+        _blurFrameCts?.Cancel();
+        _blurFrameCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _blurFrameCts = cts;
+        // Hold the token, not the source: a later scrub cancels and disposes this source
+        // while these awaits are still in flight, and reading .Token from a disposed source
+        // would throw. A token struct stays readable after its source is gone.
+        var token = cts.Token;
+        try
+        {
+            await Task.Delay(120, token);
+            var dir = Path.Combine(_workDir, "blur");
+            var path = IsShowingBlurredPreview
+                ? await PreviewBuilder.BuildBlurredFrameAsync(
+                    VideoPath, BlurPreviewSeconds, CurrentBlurRegions(), dir, ct: token)
+                : await ThumbnailExtractor.ExtractFrameAsync(
+                    VideoPath, BlurPreviewSeconds, dir, ct: token);
+            token.ThrowIfCancellationRequested();
+            BlurFrame = new Avalonia.Media.Imaging.Bitmap(path);
+        }
+        catch (OperationCanceledException)
+        {
+            // superseded by a newer scrub position — nothing to show for this one
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>The areas as the engine sees them, or nothing at all when blur is switched off.</summary>
+    private IReadOnlyList<BlurRegion> CurrentBlurRegions() =>
+        BlurEnabled ? BlurAreas.Select(a => a.ToRegion()).ToList() : [];
+
     [RelayCommand]
     private async Task GenerateAsync()
     {
         StopPlayback();
         IsClipPreviewOpen = false;
+        IsBlurEditorOpen = false;
         ErrorMessage = "";
         var boundaries = Boundaries.Select(b => b.TimeSeconds).ToList();
         if (boundaries.Zip(boundaries.Skip(1)).Any(p => p.Second <= p.First) ||
             boundaries.Any(b => b <= 0 || b >= _videoDuration))
         {
             ErrorMessage = "Step boundaries must be in increasing order, inside the video.";
+            return;
+        }
+
+        var blurRegions = CurrentBlurRegions();
+        try
+        {
+            BlurRegion.ValidateAll(blurRegions, _videoDuration);
+        }
+        catch (ArgumentException ex)
+        {
+            ErrorMessage = ex.Message;
             return;
         }
 
@@ -397,6 +726,7 @@ public partial class MainViewModel : ObservableObject
                     SubtitleFontSize = SelectedSubtitleSize?.Size ?? 16,
                     SubtitlePosition = SelectedSubtitlePosition?.Position ?? SubtitlePosition.Bottom,
                     SubtitleBackground = SelectedSubtitleBackground?.Style ?? SubtitleBackgroundStyle.Box,
+                    BlurRegions = blurRegions,
                     WorkDir = Path.Combine(_workDir, "render"),
                 },
                 progress: new Progress<string>(Log.Add),

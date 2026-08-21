@@ -29,4 +29,30 @@ public static class ThumbnailExtractor
         }
         return results;
     }
+
+    /// <summary>
+    /// Grabs a single frame at an exact time, for the blur editor's canvas. Cached by
+    /// (video, time, height) so scrubbing back over a time already looked at is instant.
+    /// </summary>
+    public static async Task<string> ExtractFrameAsync(
+        string videoPath, double timeSeconds, string outputDir, int height = 480,
+        CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(outputDir);
+        var stamp = Math.Max(0, timeSeconds).ToString("F2", CultureInfo.InvariantCulture);
+        var path = Path.Combine(outputDir, $"frame_{stamp.Replace('.', '_')}_{height}.jpg");
+        if (File.Exists(path))
+            return path;
+
+        await ProcessRunner.RunAsync(
+            ToolLocator.FfmpegPath,
+            [
+                "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
+                "-ss", stamp,
+                "-i", LocalPath.RequireInputFile(videoPath, "Input video"),
+                "-frames:v", "1", "-vf", $"scale=-2:{height}", path
+            ],
+            ct: ct);
+        return path;
+    }
 }

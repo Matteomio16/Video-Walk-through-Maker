@@ -42,4 +42,22 @@ public static class ProjectStore
 
     public static WalkthroughProject Load(string path)
         => Deserialize(File.ReadAllText(path));
+
+    /// <summary>Reads a standalone list of blur regions (the CLI's <c>--blur</c> file), using
+    /// the same JSON conventions as a project so a region can be copied between the two.</summary>
+    public static IReadOnlyList<Render.BlurRegion> DeserializeBlurRegions(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<Render.BlurRegion>>(json, Options)
+                ?? throw new InvalidDataException("Not a valid list of blur areas.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"Not a valid list of blur areas: {ex.Message}", ex);
+        }
+    }
+
+    public static string SerializeBlurRegions(IReadOnlyList<Render.BlurRegion> regions)
+        => JsonSerializer.Serialize(regions, Options);
 }

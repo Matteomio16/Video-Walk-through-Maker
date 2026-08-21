@@ -18,6 +18,15 @@ public class ProjectTests
             new Cue { Text = "First step.", SourceStart = 0, SourceEnd = 10, GainDb = -2 },
             new Cue { Text = "Second step.", SourceStart = 10, SourceEnd = 42.5, Voice = "en_US-ryan-high" },
         ],
+        BlurRegions =
+        [
+            new BlurRegion
+            {
+                StartSeconds = 3, EndSeconds = 12.5,
+                X = 0.1, Y = 0.2, Width = 0.4, Height = 0.15,
+                Style = BlurStyle.Solid, Strength = 7,
+            },
+        ],
     };
 
     [Fact]
@@ -52,6 +61,59 @@ public class ProjectTests
     public void Rejects_garbage_json()
     {
         Assert.Throws<InvalidDataException>(() => ProjectStore.Deserialize("{ not json"));
+    }
+
+    [Fact]
+    public void Blur_areas_survive_a_round_trip()
+    {
+        var reloaded = ProjectStore.Deserialize(ProjectStore.Serialize(Sample()));
+
+        var region = Assert.Single(reloaded.BlurRegions);
+        Assert.Equal(3, region.StartSeconds);
+        Assert.Equal(12.5, region.EndSeconds);
+        Assert.Equal(0.4, region.Width);
+        Assert.Equal(BlurStyle.Solid, region.Style);
+        Assert.Equal(7, region.Strength);
+    }
+
+    [Fact]
+    public void A_project_without_blur_areas_loads_with_none()
+    {
+        // A project saved before the feature existed carries no blurRegions key at all.
+        var json = ProjectStore.Serialize(Sample() with { BlurRegions = [] });
+        Assert.Empty(ProjectStore.Deserialize(json).BlurRegions);
+    }
+
+    [Fact]
+    public void Blur_areas_can_be_read_from_a_standalone_file()
+    {
+        var regions = ProjectStore.DeserializeBlurRegions("""
+            [{ "startSeconds": 1, "endSeconds": 4, "x": 0.2, "y": 0.3,
+               "width": 0.5, "height": 0.2, "style": "Blur", "strength": 10 }]
+            """);
+
+        var region = Assert.Single(regions);
+        Assert.Equal(BlurStyle.Blur, region.Style);
+        Assert.Equal(10, region.Strength);
+        region.Validate(videoDuration: 10);
+    }
+
+    [Fact]
+    public void A_standalone_blur_file_may_leave_style_and_strength_out()
+    {
+        var regions = ProjectStore.DeserializeBlurRegions("""
+            [{ "startSeconds": 1, "endSeconds": 4, "x": 0.2, "y": 0.3, "width": 0.5, "height": 0.2 }]
+            """);
+
+        var region = Assert.Single(regions);
+        Assert.Equal(BlurStyle.Blur, region.Style);
+        Assert.Equal(BlurRegion.DefaultStrength, region.Strength);
+    }
+
+    [Fact]
+    public void Garbage_in_a_blur_file_is_reported_as_such()
+    {
+        Assert.Throws<InvalidDataException>(() => ProjectStore.DeserializeBlurRegions("{ not json"));
     }
 
     [Fact]

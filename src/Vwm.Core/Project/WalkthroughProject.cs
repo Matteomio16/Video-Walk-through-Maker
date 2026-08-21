@@ -60,4 +60,8 @@ public sealed record WalkthroughProject
     public string GlobalVoice { get; init; } = "";
     public SubtitleStyleSettings GlobalSubtitle { get; init; } = new();
     public IReadOnlyList<Cue> Cues { get; init; } = [];
+    /// <summary>Parts of the frame to obscure, each over its own slice of the recording.
+    /// Kept on the project rather than on a cue: a region's slice is chosen against the
+    /// source video and may span, or sit inside, any number of cues.</summary>
+    public IReadOnlyList<BlurRegion> BlurRegions { get; init; } = [];
 }

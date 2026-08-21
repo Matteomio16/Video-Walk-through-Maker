@@ -42,6 +42,16 @@ static int Usage()
                    [--threshold 0.005] [--keep-original-audio] [--work-dir <dir>]
                    [--keep-diagnostics] [--sub-font Arial] [--sub-size 16]
                    [--sub-position bottom|middle|top] [--sub-background box|shadow]
+                   [--blur <areas.json>]
+
+                   --blur takes a JSON array of areas to obscure, each covering every frame
+                   between its start and end. Position and size are fractions of the frame
+                   (0-1), so they are independent of the recording's resolution:
+                     [{"startSeconds": 3, "endSeconds": 12.5,
+                       "x": 0.1, "y": 0.2, "width": 0.4, "height": 0.15,
+                       "style": "Blur", "strength": 10}]
+                   "style" is Blur or Solid (an opaque grey block — the safest redaction);
+                   "strength" is 1-10 and applies to Blur only.
 
           vwm make --project <walkthrough.vwmproj> --out <out.mp4>
                    [--work-dir <dir>] [--keep-diagnostics]
@@ -144,6 +154,10 @@ static async Task<int> MakeAsync(Args opts)
     if (opts.GetOrNull("boundaries") is string bFile)
         boundaries = JsonSerializer.Deserialize<double[]>(await File.ReadAllTextAsync(bFile));
 
+    IReadOnlyList<Vwm.Core.Render.BlurRegion> blurRegions = [];
+    if (opts.GetOrNull("blur") is string blurFile)
+        blurRegions = ProjectStore.DeserializeBlurRegions(await File.ReadAllTextAsync(blurFile));
+
     var result = await WalkthroughPipeline.RunAsync(
         new PipelineOptions
         {
@@ -158,6 +172,7 @@ static async Task<int> MakeAsync(Args opts)
             SubtitleFontSize = (int)opts.GetDouble("sub-size", 16),
             SubtitlePosition = ParseSubtitlePosition(opts.Get("sub-position", "bottom")),
             SubtitleBackground = ParseSubtitleBackground(opts.Get("sub-background", "box")),
+            BlurRegions = blurRegions,
             WorkDir = opts.GetOrNull("work-dir"),
             KeepIntermediates = opts.Has("keep-diagnostics") || opts.GetOrNull("work-dir") is not null,
         },
@@ -178,6 +193,8 @@ static async Task<int> MakeAsync(Args opts)
             JsonSerializer.Serialize(dump, new JsonSerializerOptions { WriteIndented = true }));
     }
 
+    if (blurRegions.Count > 0)
+        Console.WriteLine($"[vwm] blurred areas: {blurRegions.Count}");
     Console.WriteLine($"[vwm] steps: {result.Steps.Count}, boundaries: " +
         string.Join(", ", result.Boundaries.Select(b => b.ToString("F2", CultureInfo.InvariantCulture))));
     Console.WriteLine($"[vwm] wrote {result.OutputPath} and {result.SrtPath}");

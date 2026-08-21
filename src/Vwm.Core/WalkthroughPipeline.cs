@@ -27,6 +27,9 @@ public sealed record PipelineOptions
     public int SubtitleFontSize { get; init; } = 16;
     public SubtitlePosition SubtitlePosition { get; init; } = SubtitlePosition.Bottom;
     public SubtitleBackgroundStyle SubtitleBackground { get; init; } = SubtitleBackgroundStyle.Box;
+    /// <summary>Parts of the frame to obscure (blur or grey block), each over its own slice
+    /// of the recording. Empty leaves every frame untouched.</summary>
+    public IReadOnlyList<BlurRegion> BlurRegions { get; init; } = [];
     /// <summary>Directory for intermediate files. A temp directory is created when null.</summary>
     public string? WorkDir { get; init; }
     /// <summary>Keep the intermediate work directory (raw speech, clips, combined video) after the
@@ -60,6 +63,9 @@ public static class WalkthroughPipeline
             throw new ArgumentException($"Subtitle font contains unsupported characters: '{options.SubtitleFont}'.");
         if (options.SubtitleFontSize is < 6 or > 200)
             throw new ArgumentException($"Subtitle font size {options.SubtitleFontSize} is out of range (6-200).");
+        // Checked before a single frame is encoded: a bad region should be a sentence the
+        // user can act on, not an ffmpeg filter-graph error minutes into the render.
+        BlurRegion.ValidateAll(options.BlurRegions, videoDuration: 0);
 
         var workDir = options.WorkDir
             ?? Path.Combine(Path.GetTempPath(), "vwm", Path.GetRandomFileName());
@@ -134,6 +140,7 @@ public static class WalkthroughPipeline
             SubtitleFontSize = options.SubtitleFontSize,
             SubtitlePosition = options.SubtitlePosition,
             SubtitleBackground = options.SubtitleBackground,
+            BlurRegions = options.BlurRegions,
         });
         await renderer.RenderAsync(videoPath, plan, narrationWav, outputPath, progress, ct);
 
@@ -172,6 +179,7 @@ public static class WalkthroughPipeline
             throw new ArgumentException($"Subtitle font contains unsupported characters: '{project.GlobalSubtitle.Font}'.");
         if (project.GlobalSubtitle.Size is < 6 or > 200)
             throw new ArgumentException($"Subtitle font size {project.GlobalSubtitle.Size} is out of range (6-200).");
+        BlurRegion.ValidateAll(project.BlurRegions, project.VideoDuration);
 
         var wd = workDir ?? Path.Combine(Path.GetTempPath(), "vwm", Path.GetRandomFileName());
         Directory.CreateDirectory(wd);
@@ -197,6 +205,7 @@ public static class WalkthroughPipeline
                 SubtitleFontSize = project.GlobalSubtitle.Size,
                 SubtitlePosition = project.GlobalSubtitle.Position,
                 SubtitleBackground = project.GlobalSubtitle.Background,
+                BlurRegions = project.BlurRegions,
             });
             await renderer.RenderAsync(videoPath, plan, narrationWav, output, progress, ct);
 

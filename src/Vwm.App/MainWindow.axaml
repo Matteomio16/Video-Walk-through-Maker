@@ -206,6 +206,13 @@
           <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
             <Button Grid.Column="0" Classes="secondary" Content="←  Back"
                     Command="{Binding BackToInputCommand}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+              <CheckBox Content="Blur sensitive areas" IsChecked="{Binding BlurEnabled}" />
+              <Button Classes="secondary small" Content="{Binding BlurButtonText}"
+                      Command="{Binding OpenBlurEditorCommand}" IsEnabled="{Binding BlurEnabled}" />
+              <TextBlock Classes="faint" Text="{Binding BlurSummary}" VerticalAlignment="Center" />
+            </StackPanel>
             <Button Grid.Column="2" Classes="primary" Content="Create narrated video  →"
                     Command="{Binding GenerateCommand}" IsEnabled="{Binding !IsBusy}" />
           </Grid>
@@ -254,6 +261,116 @@
         </StackPanel>
       </StackPanel>
     </Grid>
+
+    <!-- ============================== blur editor (overlay) ============================== -->
+    <!-- Negative margins cancel the root grid's padding so the scrim covers the window. -->
+    <Border Grid.Row="0" Grid.RowSpan="3" Margin="-26,-20,-26,-16" Background="#D0101726"
+            IsVisible="{Binding IsBlurEditorOpen}">
+      <Border Classes="card" Margin="30,22" Padding="22,18">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+            <StackPanel Grid.Column="0" Spacing="3">
+              <TextBlock Classes="h2" Text="Hide sensitive parts of the screen" />
+              <TextBlock Classes="hint" TextWrapping="Wrap"
+                         Text="Add an area for each stretch of the recording that shows something private, then drag the grey box over it. Every frame between the area's start and end is covered." />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="secondary small" Content="✕ Close"
+                    Command="{Binding CloseBlurEditorCommand}" VerticalAlignment="Top" />
+          </Grid>
+
+          <Grid Grid.Row="1" ColumnDefinitions="300,18,*">
+
+            <!-- the list of "lengths" -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
+              <TextBlock Grid.Row="0" Classes="hint" Text="Areas" Margin="2,0,0,6" />
+              <Border Grid.Row="1" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
+                      CornerRadius="10" ClipToBounds="True">
+                <ListBox ItemsSource="{Binding BlurAreas}" SelectedItem="{Binding SelectedBlurArea}"
+                         Background="Transparent" BorderThickness="0">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BlurAreaItem">
+                      <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Header}" FontWeight="SemiBold" FontSize="13" />
+                          <TextBlock Classes="faint" Text="{Binding RangeLabel}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="secondary small" Content="✕"
+                                ToolTip.Tip="Remove this area"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveBlurAreaCommand}"
+                                CommandParameter="{Binding}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Border>
+              <Button Grid.Row="2" Classes="secondary" Margin="0,8,0,0" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Center" Content="＋  Add area"
+                      Command="{Binding AddBlurAreaCommand}" />
+            </Grid>
+
+            <!-- the frame, the box, and the area's settings -->
+            <Grid Grid.Column="2" RowDefinitions="*,Auto">
+              <Border Grid.Row="0" CornerRadius="10" ClipToBounds="True" MinHeight="240">
+                <ctrl:BlurCanvas x:Name="BlurEditorCanvas"
+                                 Frame="{Binding BlurFrame}"
+                                 Region="{Binding SelectedBlurArea}"
+                                 ShowBox="{Binding ShowPlacementBox}" />
+              </Border>
+
+              <StackPanel Grid.Row="1" Spacing="7" Margin="0,12,0,0"
+                          IsVisible="{Binding HasSelectedBlurArea}">
+                <Grid ColumnDefinitions="82,*,68">
+                  <TextBlock Grid.Column="0" Classes="hint" Text="Starts" VerticalAlignment="Center"
+                             Margin="0,0,10,0" />
+                  <Slider Grid.Column="1" Minimum="0" Maximum="{Binding SelectedBlurArea.MaxSeconds}"
+                          Value="{Binding SelectedBlurArea.StartSeconds}" />
+                  <TextBlock Grid.Column="2" Classes="hint" TextAlignment="Right" VerticalAlignment="Center"
+                             Text="{Binding SelectedBlurArea.StartLabel}" />
+                </Grid>
+                <Grid ColumnDefinitions="82,*,68">
+                  <TextBlock Grid.Column="0" Classes="hint" Text="Ends" VerticalAlignment="Center"
+                             Margin="0,0,10,0" />
+                  <Slider Grid.Column="1" Minimum="0" Maximum="{Binding SelectedBlurArea.MaxSeconds}"
+                          Value="{Binding SelectedBlurArea.EndSeconds}" />
+                  <TextBlock Grid.Column="2" Classes="hint" TextAlignment="Right" VerticalAlignment="Center"
+                             Text="{Binding SelectedBlurArea.EndLabel}" />
+                </Grid>
+                <Grid ColumnDefinitions="82,*,68">
+                  <TextBlock Grid.Column="0" Classes="hint" Text="Show frame" VerticalAlignment="Center"
+                             Margin="0,0,10,0" />
+                  <Slider Grid.Column="1" Minimum="{Binding BlurPreviewMin}" Maximum="{Binding BlurPreviewMax}"
+                          Value="{Binding BlurPreviewSeconds}"
+                          ToolTip.Tip="Scrub through the area to check the box still covers the content" />
+                  <TextBlock Grid.Column="2" Classes="hint" TextAlignment="Right" VerticalAlignment="Center"
+                             Text="{Binding BlurPreviewLabel}" />
+                </Grid>
+
+                <Grid ColumnDefinitions="82,150,16,Auto,130,*,Auto">
+                  <TextBlock Grid.Column="0" Classes="hint" Text="Cover with" VerticalAlignment="Center"
+                             Margin="0,0,10,0" />
+                  <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                            ItemsSource="{Binding BlurStyles}" SelectedItem="{Binding SelectedBlurArea.Style}" />
+                  <TextBlock Grid.Column="3" Classes="hint" Text="Strength" VerticalAlignment="Center"
+                             Margin="0,0,10,0" />
+                  <ComboBox Grid.Column="4" HorizontalAlignment="Stretch"
+                            ItemsSource="{Binding BlurStrengths}" SelectedItem="{Binding SelectedBlurArea.Strength}" />
+                  <Button Grid.Column="6" Classes="secondary" Content="{Binding BlurPreviewButtonText}"
+                          Command="{Binding ToggleBlurredPreviewCommand}" />
+                </Grid>
+              </StackPanel>
+            </Grid>
+          </Grid>
+
+          <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+            <TextBlock Grid.Column="0" Classes="faint" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Text="A solid grey block is the safest choice for anything truly secret — even a strong blur keeps a trace of the original pixels." />
+            <Button Grid.Column="1" Classes="primary" Content="Done"
+                    Command="{Binding CloseBlurEditorCommand}" />
+          </Grid>
+        </Grid>
+      </Border>
+    </Border>
 
     <!-- ============================== footer: busy + errors ============================== -->
     <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">

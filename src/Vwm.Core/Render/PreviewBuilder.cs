@@ -5,6 +5,7 @@ using Vwm.Core.Audio;
 using Vwm.Core.Script;
 using Vwm.Core.Tools;
 using Vwm.Core.Tts;
+using Vwm.Core.Video;
 
 namespace Vwm.Core.Render;
 
@@ -55,22 +56,34 @@ public static class PreviewBuilder
         double sourceEnd,
         string narrationWavPath,
         string workDir,
+        IReadOnlyList<BlurRegion>? blurRegions = null,
         CancellationToken ct = default)
     {
         Directory.CreateDirectory(workDir);
-        var key = CacheKey(Path.GetFileName(narrationWavPath),
-            $"{videoPath}|{sourceStart:F3}|{sourceEnd:F3}");
-        var outPath = Path.Combine(workDir, $"clip_{key}.mp4");
-        if (File.Exists(outPath))
-            return outPath;
 
         var sourceDuration = sourceEnd - sourceStart;
         var narrationDuration = LeadInSeconds + WavFile.GetDuration(narrationWavPath) + TailSeconds;
         var outputDuration = Math.Max(sourceDuration, narrationDuration);
         var hold = outputDuration - sourceDuration;
 
+        // The preview shows the blur exactly as the render will: same regions, same
+        // segment-local mapping, same filters — only the resolution differs, and the
+        // regions are stored as fractions of the frame precisely so that does not matter.
+        var blurs = BlurFilterBuilder.ForSegment(blurRegions, sourceStart, sourceEnd, outputDuration);
+
+        var key = CacheKey(Path.GetFileName(narrationWavPath),
+            $"{videoPath}|{sourceStart:F3}|{sourceEnd:F3}|{BlurCacheKey(blurs)}");
+        var outPath = Path.Combine(workDir, $"clip_{key}.mp4");
+        if (File.Exists(outPath))
+            return outPath;
+
         string F(double v) => v.ToString("F4", CultureInfo.InvariantCulture);
         var leadMs = (int)(LeadInSeconds * 1000);
+
+        var videoGraph = BlurFilterBuilder.BuildGraph(
+            $"[0:v]trim=duration={F(sourceDuration)},setpts=PTS-STARTPTS," +
+            $"tpad=stop_mode=clone:stop_duration={F(hold)},fps=30,scale=-2:480,format=yuv420p",
+            blurs);
 
         await ProcessRunner.RunAsync(
             ToolLocator.FfmpegPath,
@@ -79,9 +92,7 @@ public static class PreviewBuilder
                 "-ss", F(sourceStart), "-i", Path.GetFullPath(videoPath),
                 "-i", Path.GetFullPath(narrationWavPath),
                 "-filter_complex",
-                $"[0:v]trim=duration={F(sourceDuration)},setpts=PTS-STARTPTS," +
-                $"tpad=stop_mode=clone:stop_duration={F(hold)},fps=30,scale=-2:480,format=yuv420p[v];" +
-                $"[1:a]adelay={leadMs}:all=1[a]",
+                $"{videoGraph}[v];[1:a]adelay={leadMs}:all=1[a]",
                 "-map", "[v]", "-map", "[a]",
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
                 "-c:a", "aac", "-b:a", "128k",
@@ -91,6 +102,46 @@ public static class PreviewBuilder
             ct: ct);
         return outPath;
     }
+
+    /// <summary>
+    /// One frame with the blur regions actually applied, so the editor can show what the
+    /// render will produce rather than only the grey placement box. Cached by content.
+    /// </summary>
+    public static async Task<string> BuildBlurredFrameAsync(
+        string videoPath,
+        double timeSeconds,
+        IReadOnlyList<BlurRegion>? blurRegions,
+        string workDir,
+        int height = 480,
+        CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(workDir);
+        var blurs = BlurFilterBuilder.ForFrame(blurRegions, timeSeconds);
+        if (blurs.Count == 0)
+            return await ThumbnailExtractor.ExtractFrameAsync(videoPath, timeSeconds, workDir, height, ct);
+
+        var key = CacheKey("blurframe", $"{videoPath}|{timeSeconds:F3}|{height}|{BlurCacheKey(blurs)}");
+        var outPath = Path.Combine(workDir, $"{key}.jpg");
+        if (File.Exists(outPath))
+            return outPath;
+
+        var graph = BlurFilterBuilder.BuildGraph($"scale=-2:{height},format=yuv420p", blurs);
+        await ProcessRunner.RunAsync(
+            ToolLocator.FfmpegPath,
+            [
+                "-hide_banner", "-y", "-protocol_whitelist", "file,pipe",
+                "-ss", timeSeconds.ToString("F2", CultureInfo.InvariantCulture),
+                "-i", LocalPath.RequireInputFile(videoPath, "Input video"),
+                "-frames:v", "1", "-vf", graph, outPath,
+            ],
+            ct: ct);
+        return outPath;
+    }
+
+    private static string BlurCacheKey(IReadOnlyList<AppliedBlur> blurs) =>
+        string.Join(",", blurs.Select(b =>
+            $"{b.Region.X:F4};{b.Region.Y:F4};{b.Region.Width:F4};{b.Region.Height:F4};" +
+            $"{b.Region.Style};{b.Region.Strength};{b.LocalStart:F4};{b.LocalEnd:F4}"));
 
     private static string CacheKey(string engine, string text)
     {

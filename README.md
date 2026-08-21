@@ -11,8 +11,9 @@ You drop in a video and a plain-text script describing the steps shown. The tool
 3. generates the voiceover locally (a choice of bundled Piper neural voices, or the
    Windows built-in voice),
 4. **freeze-frames the video** wherever the narration needs more time than the recording gives it,
-5. burns subtitles into the frames (an `.srt` sidecar is written too), and
-6. produces a single `.mp4`.
+5. **blurs out anything sensitive** you box off in the editor,
+6. burns subtitles into the frames (an `.srt` sidecar is written too), and
+7. produces a single `.mp4`.
 
 ## For end users
 
@@ -27,8 +28,33 @@ the app right away. No Python, no internet connection needed — ever.
    background (a grey box behind the text, or just a drop shadow).
 2. **Review** — the app proposes where each step starts in the video. Check the step
    texts, listen to each step's voice, and watch a video+voice preview of any step right
-   inside the app. Nudge the boundary sliders if a guess is off.
+   inside the app. Nudge the boundary sliders if a guess is off. Tick **Blur sensitive
+   areas** to hide parts of the screen (see below).
 3. **Create** — wait for rendering, then open the output folder.
+
+### Hiding sensitive parts of the screen
+
+Recordings often catch something that should not leave the building — a customer name, an
+account number, a licence key. Tick **Blur sensitive areas** on the Review screen and the
+editor opens:
+
+- **Add an area** for each stretch of the recording that shows something private. Each area
+  has its own *start* and *end*, so a name that is only on screen between 0:12 and 0:30 is
+  covered for exactly those seconds and no others.
+- **Drag the grey box** over what should be hidden, and pull any of its eight handles to
+  resize it. Dragging on bare frame draws a fresh box from scratch. The box applies to
+  **every frame between the area's start and end** — including the freeze-frames the tool
+  adds when narration runs long.
+- **Scrub** the *Show frame* slider through the area to check the box still covers the
+  content as the screen changes, and press **Show the real blur** to see the frame put
+  through the actual render filters rather than the placement box.
+- **Cover with** a *Blur* (strength Light / Medium / Strong) or a *Solid grey block*. For
+  anything truly secret, prefer the solid block: a blur, however strong, still carries the
+  original pixels' local averages.
+
+Add as many areas as you need — they can overlap in time and in place, and each keeps its own
+rectangle, style and strength. Areas are burned into the rendered video, so the sensitive
+pixels are gone from the file you hand over, not merely hidden by a player.
 
 Tips
 - The output video is *longer* than the recording whenever narration needs more time —
@@ -72,6 +98,11 @@ Tips
   | `en_US-hfc_female-medium.onnx.json` | `03f1fa0622b80463283592d97aca9f6e89aec345a5c56b7257723e0093c58b6c` |
   | `en_US-ryan-high.onnx` | `b3990d7606e183ec8dbfba70a4607074f162de1a0c412e0180d1ff60bb154eca` |
   | `en_US-ryan-high.onnx.json` | `c6d3b98f08315cb4bebf0d49d50fc4ff491b503c64b940cd3d5ca28543b48011` |
+- **Redaction is burned in, locally.** Blurred and blocked-out areas are applied by the
+  bundled ffmpeg while each segment is encoded, before the subtitle burn — the sensitive
+  pixels are not present in the delivered file at all, rather than being covered by an
+  overlay a player could turn off. A region reaching the end of its video slice also covers
+  the freeze-frames that extend it, so the content cannot resurface while the video holds.
 - **Ephemeral intermediates.** Raw synthesized speech, subtitle text and intermediate
   clips live in a per-run temp workspace that is deleted when the job finishes (and the
   app's workspace is deleted when the window closes), so corporate recordings are not
@@ -119,10 +150,27 @@ vwm make --video in.mp4 --script script.txt --out out.mp4 \
       [--engine piper|espeak|windows] [--voice <voice id>] \
       [--boundaries b.json] [--keep-original-audio] \
       [--sub-font Arial] [--sub-size 16] [--sub-position bottom|middle|top] \
-      [--sub-background box|shadow]
+      [--sub-background box|shadow] [--blur areas.json]
 vwm detect --video in.mp4 --steps 4      # print proposed step boundaries as JSON
 vwm voices                               # list the bundled Piper voice ids
 ```
+
+`--blur` takes the same areas the editor produces, as a JSON array. Position and size are
+fractions of the frame, so one file works whatever the recording's resolution:
+
+```json
+[
+  { "startSeconds": 12, "endSeconds": 30,
+    "x": 0.10, "y": 0.22, "width": 0.35, "height": 0.08,
+    "style": "Blur", "strength": 10 },
+  { "startSeconds": 0, "endSeconds": 9999,
+    "x": 0.72, "y": 0.02, "width": 0.26, "height": 0.06,
+    "style": "Solid" }
+]
+```
+
+`style` is `Blur` or `Solid`; `strength` is 1-10 and applies to `Blur` only (default 10).
+Both are optional. An end time past the recording simply runs to the end.
 
 ### How the sync works
 
@@ -138,7 +186,7 @@ Everything hangs off exact WAV durations — no fragile word-timestamp APIs:
 
 | Path | What |
 |---|---|
-| `src/Vwm.Core` | The pipeline engine: script parsing, scene detection, TTS abstraction, timeline planning, SRT building, ffmpeg rendering |
+| `src/Vwm.Core` | The pipeline engine: script parsing, scene detection, TTS abstraction, timeline planning, SRT building, blur/redaction filters, ffmpeg rendering |
 | `src/Vwm.Cli` | `vwm` command-line interface |
 | `src/Vwm.App` | Avalonia desktop app (3-step wizard) |
 | `src/Vwm.Tts.Windows` | Windows built-in voice engine (WinRT) |
